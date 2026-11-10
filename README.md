@@ -1,4 +1,4 @@
-# Jiwo Probe（鸡窝状态站）
+# Jiwo next（鸡窝next）
 
 妙妙屋 X（MiaoMiaoWuX）独立服务器探针的**非官方魔改 fork**，基于 [mmwx-probe](https://github.com/mmwx-group/mmwx-probe)（功能基线 `e6f3a11`，2026-09-11；后续按本 fork 架构选择性移植。截至 2026-10-06，已接入主控多天历史、两年／三年／永久续费周期，并适配 Premium 白金可读性与筛选栏修复；保留 Jiwo 自定义布局与功能，不等同于完整合并上游）。
 
