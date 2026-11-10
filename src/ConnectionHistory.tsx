@@ -1,0 +1,86 @@
+import { useState } from 'react'
+import type { ProbeServer } from './types'
+import { connectionCount } from './unlocks'
+import { SystemTrendChart } from './deferred'
+import { ProbeHistoryDialog } from './components/ProbeHistoryDialog'
+import { useProbe } from './use-probe'
+import { connBucketLabel, connHoverIndex, connSparklineMax, connSparklinePath, normalizeConnHistory } from './conn-sparkline'
+import './probe-history.css'
+
+function ConnectionHistoryDialog({ serverIndex, name, close }: { serverIndex: number; name: string; close: () => void }) {
+  return <ProbeHistoryDialog title="TCP / UDP 连接数历史" subtitle={name} closeLabel="关闭连接数历史" close={close}>
+    <SystemTrendChart serverIndex={serverIndex} metric="connections" fixedAxis={false} />
+  </ProbeHistoryDialog>
+}
+
+/** 卡片共用主控快照，不启动请求/采样；只有打开历史弹窗才按需读取 /api/series。 */
+export function ConnectionHistory({ server, serverIndex }: { server: ProbeServer; serverIndex: number }) {
+  const { connectionChartEnabled } = useProbe()
+  const [open, setOpen] = useState(false)
+  const [hover, setHover] = useState<number | null>(null)
+  if (connectionChartEnabled !== true) return null
+  const history = normalizeConnHistory(server.conn_history)
+  if (!history) return null
+  const length = history.tcp.length
+  const max = connSparklineMax(history)
+  const hasSamples = [...history.tcp, ...history.udp].some(value => value !== null)
+  const selected = hover === null || !length ? null : Math.min(hover, length - 1)
+  const name = server.name || `服务器 ${serverIndex + 1}`
+  return <>
+    <button type="button" className="probe-conn-history" aria-label={`查看 ${name} 连接数历史`} aria-haspopup="dialog" aria-expanded={open}
+      onClick={event => { event.stopPropagation(); setOpen(true) }} onMouseDown={event => event.stopPropagation()}
+      onFocus={() => setHover(Math.max(0, length - 1))} onBlur={() => setHover(null)}
+      onKeyDown={event => {
+        event.stopPropagation()
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault()
+          setHover(value => Math.max(0, Math.min(length - 1, (value ?? length - 1) + (event.key === 'ArrowLeft' ? -1 : 1))))
+        }
+      }}>
+      <span className="probe-conn-heading"><span><i className="probe-conn-tcp-dot" />TCP <i className="probe-conn-udp-dot" />UDP</span><span>近 1 小时 <span aria-hidden="true">↗</span></span></span>
+      <span className="probe-conn-plot" onPointerMove={event => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        setHover(connHoverIndex((event.clientX - rect.left) / rect.width, length))
+      }} onPointerLeave={() => setHover(null)}>
+        <svg viewBox="0 0 120 40" preserveAspectRatio="none" role="img" aria-label="TCP 与 UDP 共用纵轴的连接数折线图">
+          <line className="probe-conn-base" x1="0" x2="120" y1="37" y2="37" vectorEffect="non-scaling-stroke" />
+          <path className="probe-conn-tcp" d={connSparklinePath(history.tcp, max)} vectorEffect="non-scaling-stroke" />
+          <path className="probe-conn-udp" d={connSparklinePath(history.udp, max)} vectorEffect="non-scaling-stroke" />
+          {hasSamples && selected !== null && <line className="probe-conn-guide" x1={length <= 1 ? 60 : selected / (length - 1) * 120} x2={length <= 1 ? 60 : selected / (length - 1) * 120} y1="0" y2="40" vectorEffect="non-scaling-stroke" />}
+        </svg>
+        {hasSamples && selected !== null && (['tcp', 'udp'] as const).map(kind => {
+          const value = history[kind][selected]
+          // 圆点按百分比定位，与拉伸后的折线（viewBox 0 0 120 40，上下留 3）对齐（上游 a677a42）
+          return typeof value === 'number' && <i key={kind} className={`probe-conn-dot ${kind}`} style={{
+            left: `${length <= 1 ? 50 : selected / (length - 1) * 100}%`,
+            top: `${(3 + 34 * (1 - value / (max > 0 ? max : 1))) / 40 * 100}%`,
+          }} />
+        })}
+        {!hasSamples && <span className="probe-conn-empty">暂无连接数采样</span>}
+        {hasSamples && selected !== null && <span className="probe-conn-tip"><small>{connBucketLabel(selected, length)} · 均值</small>TCP {connectionCount(history.tcp[selected] ?? undefined)} · UDP {connectionCount(history.udp[selected] ?? undefined)}</span>}
+      </span>
+    </button>
+    {open && <ConnectionHistoryDialog serverIndex={serverIndex} name={name} close={() => setOpen(false)} />}
+  </>
+}
+
+/** 经典卡片的「系统连接数」小格（照主控 v0.6.1-beta.3 探针页）：点开看连接数历史；主控没开连接数曲线时只显示数字 */
+export function ConnectionBox({ server, serverIndex }: { server: ProbeServer; serverIndex: number }) {
+  const { connectionChartEnabled } = useProbe()
+  const [open, setOpen] = useState(false)
+  const name = server.name || `服务器 ${serverIndex + 1}`
+  const help = 'TCP：整机已建立连接；UDP：整机 socket。不是代理用户数；未上报显示 —。'
+  const body = <>
+    <span className="net-box-label" title={help}>系统连接数</span>
+    <span>TCP <b>{connectionCount(server.tcp_connections)}</b></span>
+    <span>UDP <b>{connectionCount(server.udp_connections)}</b></span>
+  </>
+  if (connectionChartEnabled !== true) return <div className="net-box" title={help}>{body}</div>
+  return <>
+    <button type="button" className="net-box net-box-button" aria-label={`查看 ${name} 连接数历史`} aria-haspopup="dialog" title="查看连接数历史"
+      onClick={event => { event.stopPropagation(); setOpen(true) }} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+      {body}
+    </button>
+    {open && <ConnectionHistoryDialog serverIndex={serverIndex} name={name} close={() => setOpen(false)} />}
+  </>
+}

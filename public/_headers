@@ -1,0 +1,22 @@
+# Cloudflare Workers 静态资源响应头（构建时随 public 复制到 dist 根目录，本文件本身不对外提供）。
+# /assets/* 由 Vite 生成、文件名带内容哈希，内容变了文件名就变，可以长期缓存。
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 表情、字体、解锁图标几乎不变，但文件名不带哈希：缓存 7 天，过期后后台更新。
+/twemoji/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/fonts/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/unlock-icons/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# 全站基础安全头。Ran 的访客提示会同源嵌入 map.html，所以只允许同源 iframe；
+# 剪贴板（复制 SSH）和 Passkey 登录不受 Permissions-Policy 限制。
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()

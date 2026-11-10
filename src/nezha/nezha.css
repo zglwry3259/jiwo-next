@@ -1,0 +1,903 @@
+/* 哪吒 · v1.0 · 2026-10-23 — 照哪吒 V1 默认前台（nezha-dash-v1）的配色与排版，浅色 / 深色两套。来源说明见 NOTICE.md。 */
+:root.theme-nezha {
+  --nz-bg: #fafafa;
+  --nz-fg: #0c0a09;
+  --nz-card: #fff;
+  --nz-secondary: #f5f5f4;
+  --nz-muted-fg: #78716c;
+  --nz-border: #e7e5e4;
+  --nz-ring: #e7e5e4;
+  --nz-ring-hover: #d6d3d1;
+  --nz-shadow: 0 4px 6px -1px rgb(231 229 228 / 50%), 0 2px 4px -2px rgb(231 229 228 / 50%);
+  --nz-control: #fff;
+  --nz-blue-soft: #dbeafe;
+  --nz-blue: #2563eb;
+  --nz-up: #1e40af;
+  --nz-down: #6b21a8;
+  --nz-green: #22c55e;
+  --nz-orange: #fb923c;
+  --nz-red: #ef4444;
+  --nz-font: Inter, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 共用组件（转发链、许可证栏、主题选择、详情页）读这些通用变量 */
+  --bg: var(--nz-bg); --surface: var(--nz-card); --card: var(--nz-card); --panel: var(--nz-card);
+  --text: var(--nz-fg); --foreground: var(--nz-fg); --muted: var(--nz-muted-fg); --border: var(--nz-border);
+  --primary: var(--nz-blue); --accent: var(--nz-blue); --radius: 16px;
+  --mini-page: var(--nz-bg); --mini-surface: var(--nz-card); --mini-soft: var(--nz-secondary); --mini-border: var(--nz-border);
+  --mini-text: var(--nz-fg); --mini-muted: var(--nz-muted-fg); --mini-accent: var(--nz-blue); --mini-green: #16a34a; --mini-blue: #3b82f6;
+  --mini-meter-track: var(--nz-secondary); --mini-meter-good: var(--nz-green); --mini-meter-warm: var(--nz-orange); --mini-meter-high: var(--nz-red);
+  --mini-ping-good: #4ade80; --mini-shadow: var(--nz-shadow);
+  color-scheme: light;
+  color: var(--nz-fg);
+  background: var(--nz-bg);
+}
+:root.theme-nezha.dark {
+  --nz-bg: #171411;
+  --nz-fg: #fafaf9;
+  --nz-card: #0c0a09;
+  --nz-secondary: #292524;
+  --nz-muted-fg: #a8a29e;
+  --nz-border: #292524;
+  --nz-ring: #292524;
+  --nz-ring-hover: #44403c;
+  /* 写成透明阴影而不是 none：它会拼进 box-shadow 列表，none 会让整条声明失效 */
+  --nz-shadow: 0 0 #0000;
+  --nz-control: #000;
+  --nz-blue-soft: #1e3a8a;
+  --nz-blue: #60a5fa;
+  --nz-up: #60a5fa;
+  --nz-down: #c084fc;
+  --mini-green: #4ade80;
+  --mini-blue: #60a5fa;
+  color-scheme: dark;
+}
+:root.theme-nezha body {
+  background: var(--nz-bg);
+}
+
+.nz-app {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 16px 12px 0;
+  color: var(--nz-fg);
+  font-family: var(--nz-font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.nz-app *,
+.nz-app *::before,
+.nz-app *::after {
+  box-sizing: border-box;
+}
+.nz-app p {
+  margin: 0;
+}
+.nz-app button {
+  font: inherit;
+  color: inherit;
+}
+.nz-main,
+.nz-header {
+  width: 100%;
+  max-width: 1024px;
+  margin: 0 auto;
+}
+
+/* 页头：左边站点名与说明，右边登录、主题、明暗与在线台数 */
+.nz-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.nz-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.nz-brand img {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+}
+.nz-brand > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nz-separator {
+  width: 1px;
+  height: 16px;
+  margin: 0 8px;
+  background: var(--nz-border);
+}
+.nz-brand small {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.4;
+  white-space: nowrap;
+}
+.nz-handles {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+.nz-outline-button,
+.nz-app .probe-theme-trigger {
+  display: inline-flex;
+  height: 32px;
+  min-width: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--nz-border);
+  border-radius: 999px;
+  padding: 0 9px;
+  color: var(--nz-fg);
+  background: var(--nz-control);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.15s;
+}
+.nz-outline-button:hover,
+.nz-app .probe-theme-trigger:hover {
+  background: var(--nz-secondary);
+}
+:root:not(.theme-ran) .nz-app .probe-theme-picker > .probe-theme-trigger {
+  height: 32px;
+  border-radius: 999px;
+}
+.nz-online {
+  cursor: default;
+}
+.nz-online:hover {
+  background: var(--nz-control);
+}
+.nz-online b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.nz-online span {
+  color: var(--nz-muted-fg);
+}
+.nz-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.nz-dot.green {
+  background: var(--nz-green);
+}
+.nz-dot.red {
+  background: var(--nz-red);
+}
+.nz-dot.blue {
+  background: #3b82f6;
+}
+
+.nz-greeting {
+  display: flex;
+  flex-direction: column;
+  margin-top: 40px;
+}
+.nz-greeting > p {
+  font-size: 16px;
+  font-weight: 600;
+}
+.nz-greeting > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.nz-greeting > div > span {
+  opacity: 0.5;
+}
+.nz-greeting time {
+  font-variant-numeric: tabular-nums;
+}
+.nz-greeting time i {
+  margin: 0 1px;
+  font-style: normal;
+  opacity: 0.5;
+}
+
+/* 卡片：白底、细描边、浅阴影，圆角 16px */
+.nz-card {
+  border: 0;
+  border-radius: 16px;
+  color: var(--nz-fg);
+  background: var(--nz-card);
+  box-shadow: 0 0 0 1px var(--nz-ring), var(--nz-shadow);
+  transition: box-shadow 0.15s;
+}
+
+.nz-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.nz-overview-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 24px;
+  text-align: left;
+  cursor: pointer;
+}
+.nz-overview-card > p {
+  font-size: 14px;
+  font-weight: 500;
+}
+.nz-overview-card > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nz-overview-card strong {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.nz-overview-card.tone-blue:hover {
+  box-shadow: 0 0 0 1px #3b82f6, var(--nz-shadow);
+}
+.nz-overview-card.tone-green:hover {
+  box-shadow: 0 0 0 1px #22c55e, var(--nz-shadow);
+}
+.nz-overview-card.tone-red:hover {
+  box-shadow: 0 0 0 1px #ef4444, var(--nz-shadow);
+}
+.nz-overview-card.tone-green.is-active {
+  box-shadow: 0 0 0 2px #22c55e, var(--nz-shadow);
+}
+.nz-overview-card.tone-red.is-active {
+  box-shadow: 0 0 0 2px #ef4444, var(--nz-shadow);
+}
+.nz-network-card {
+  cursor: default;
+}
+.nz-network-card:hover {
+  box-shadow: 0 0 0 1px #a855f7, var(--nz-shadow);
+}
+.nz-network-total,
+.nz-network-speed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.nz-network-total {
+  font-size: 12px;
+  font-weight: 500;
+}
+.nz-network-total .up {
+  color: var(--nz-up);
+}
+.nz-network-total .down {
+  color: var(--nz-down);
+}
+.nz-network-speed {
+  font-size: 11px;
+  font-weight: 600;
+}
+.nz-network-speed span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 控件行：圆形开关、地区分组、搜索与排序 */
+.nz-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 24px;
+}
+.nz-controls-start {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.nz-round-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50px;
+  padding: 10px;
+  color: var(--nz-blue) !important;
+  background: var(--nz-blue-soft);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+:root.theme-nezha.dark .nz-round-button {
+  color: #dbeafe !important;
+}
+.nz-round-button[aria-pressed='true'] {
+  color: #fff !important;
+  background: #2563eb;
+}
+:root.theme-nezha.dark .nz-round-button[aria-pressed='true'] {
+  color: #2563eb !important;
+  background: #dbeafe;
+}
+.nz-group-switch {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+  overflow-x: auto;
+  border-radius: 50px;
+  padding: 3px;
+  background: var(--nz-secondary);
+  scrollbar-width: none;
+}
+.nz-group-switch::-webkit-scrollbar {
+  display: none;
+}
+.nz-group-switch button {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 46px;
+  padding: 5px 12px;
+  color: var(--nz-muted-fg);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nz-group-switch button[aria-selected='true'] {
+  color: var(--nz-fg);
+  background: var(--nz-card);
+  box-shadow: 0 8px 16px -6px rgb(0 0 0 / 8%);
+}
+:root.theme-nezha.dark .nz-group-switch button[aria-selected='true'] {
+  background: #44403c;
+}
+.nz-group-switch .emoji {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
+}
+.nz-pill {
+  display: flex;
+  height: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid var(--nz-border);
+  border-radius: 999px;
+  color: #57534e;
+  background: var(--nz-control);
+  font-size: 14px;
+}
+:root.theme-nezha.dark .nz-pill {
+  border-color: #292524;
+  color: #d6d3d1;
+  background: #292524;
+}
+.nz-search {
+  gap: 6px;
+  padding: 0 12px;
+}
+.nz-search input {
+  width: 92px;
+  border: 0;
+  outline: 0;
+  color: var(--nz-fg);
+  background: transparent;
+  font: inherit;
+}
+.nz-search input::placeholder {
+  color: var(--nz-muted-fg);
+}
+.nz-sort button {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0 12px;
+  color: var(--nz-fg);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 500;
+}
+.nz-sort button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.nz-sort > i {
+  margin-bottom: 2px;
+  color: #d6d3d1;
+  font-style: normal;
+}
+:root.theme-nezha.dark .nz-sort > i {
+  color: #57534e;
+}
+.nz-sort select {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  margin: 0 12px 0 8px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+}
+.nz-sort select option {
+  color: #0c0a09;
+  background: #fff;
+}
+.nz-sort.is-active {
+  color: var(--nz-blue);
+}
+
+.nz-map {
+  margin-top: 24px;
+  padding: 8px 16px 12px;
+}
+.nz-map .globe-stage {
+  padding: 0;
+}
+.nz-map .region-globe {
+  max-height: 340px;
+}
+:root.theme-nezha .nz-map {
+  --globe-ocean-light: #eff6ff;
+  --globe-ocean-dark: #dbeafe;
+}
+:root.theme-nezha.dark .nz-map {
+  --globe-ocean-light: #1c1917;
+  --globe-ocean-dark: #0c0a09;
+}
+.nz-loading,
+.nz-empty {
+  padding: 40px 16px;
+  color: var(--nz-muted-fg);
+  font-size: 14px;
+  text-align: center;
+}
+.nz-forward {
+  margin-top: 24px;
+}
+.nz-forward .probe-forward {
+  width: 100%;
+  margin: 0;
+  border-radius: 16px;
+}
+
+/* 服务器卡片：一列，中屏两列；宽屏时名字在左、指标在右 */
+.nz-card-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 24px;
+}
+.nz-server {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  cursor: pointer;
+}
+.nz-server:hover,
+.nz-inline:hover {
+  box-shadow: 0 0 0 1px var(--nz-ring-hover), var(--nz-shadow);
+}
+.nz-server:focus-visible,
+.nz-inline:focus-visible {
+  outline: 2px solid var(--nz-blue);
+  outline-offset: 2px;
+}
+.nz-server.is-offline {
+  min-height: 93px;
+  justify-content: center;
+}
+.nz-server-name {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.nz-server-name > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.nz-server-name > div > p {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.nz-flag {
+  display: flex;
+  min-width: 17px;
+  align-items: center;
+  justify-content: center;
+}
+.nz-flag .emoji {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+.nz-server-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.nz-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  align-items: center;
+  gap: 12px;
+}
+.nz-unit {
+  margin-left: 1px;
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.75;
+}
+.nz-metrics > div,
+.nz-inline-metrics > div > span {
+  display: flex;
+  min-width: 56px;
+  flex-direction: column;
+}
+.nz-metrics p,
+.nz-inline-metrics p {
+  color: var(--nz-muted-fg);
+  font-size: 12px;
+}
+.nz-metrics strong,
+.nz-inline-metrics strong {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.nz-usage,
+.nz-remain {
+  position: relative;
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--nz-secondary);
+}
+.nz-usage i,
+.nz-remain i {
+  display: block;
+  height: 100%;
+  transition: width 0.3s;
+}
+.nz-usage i.ok,
+.nz-remain i.ok {
+  background: var(--nz-green);
+}
+.nz-usage i.warn,
+.nz-remain i.warn {
+  background: var(--nz-orange);
+}
+.nz-usage i.bad,
+.nz-remain i.bad {
+  background: var(--nz-red);
+}
+.nz-remain {
+  width: 70px;
+  margin-top: 2px;
+}
+.nz-transfer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.nz-transfer span {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 6px -1px rgb(229 229 229 / 30%);
+}
+.nz-transfer .secondary {
+  background: var(--nz-secondary);
+}
+.nz-transfer .outline {
+  border-color: var(--nz-border);
+}
+:root.theme-nezha.dark .nz-transfer span {
+  box-shadow: none;
+}
+.nz-billing p {
+  color: var(--nz-muted-fg);
+  font-size: 10px;
+}
+.nz-billing p.is-expired {
+  color: #dc2626;
+}
+.nz-plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+.nz-plan span {
+  width: fit-content;
+  border-radius: 5px;
+  padding: 1.5px 3px;
+  font-size: 9px;
+  line-height: 1.3;
+}
+.nz-plan .green {
+  color: #bbf7d0;
+  background: #16a34a;
+}
+.nz-plan .blue {
+  color: #bfdbfe;
+  background: #2563eb;
+}
+:root.theme-nezha.dark .nz-plan .green {
+  color: #86efac;
+  background: #166534;
+}
+:root.theme-nezha.dark .nz-plan .blue {
+  color: #93c5fd;
+  background: #1e40af;
+}
+
+/* 列表视图：一行一台，放不下时横向滚动 */
+.nz-inline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  overflow-x: auto;
+  padding: 1px;
+  scrollbar-width: none;
+}
+.nz-inline-list::-webkit-scrollbar {
+  display: none;
+}
+.nz-inline {
+  display: flex;
+  width: 100%;
+  min-width: 900px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+}
+.nz-inline .nz-server-name {
+  width: 144px;
+  flex-shrink: 0;
+}
+.nz-inline.is-offline {
+  min-height: 61px;
+}
+.nz-inline-separator {
+  width: 1px;
+  height: 32px;
+  margin-left: 8px;
+  background: var(--nz-border);
+}
+.nz-inline-metrics {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 1.3fr repeat(8, minmax(0, 1fr));
+  align-items: center;
+  gap: 12px;
+}
+.nz-inline-metrics > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.nz-inline-metrics > div > span {
+  min-width: 0;
+}
+.nz-inline-metrics strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nz-os-icon {
+  display: inline-flex;
+  color: var(--nz-fg);
+}
+.nz-os-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.nz-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin: 40px 0 8px;
+  padding: 20px 0;
+  color: var(--nz-muted-fg);
+  font-size: 13px;
+  font-weight: 500;
+}
+.nz-footer a {
+  color: inherit;
+}
+.nz-footer a:hover {
+  color: var(--nz-fg);
+}
+.nz-license {
+  margin-top: 8px;
+}
+
+/* 共用组件随哪吒配色 */
+:root.theme-nezha .probe-theme-panel {
+  --picker-bg: var(--nz-card); --picker-fg: var(--nz-fg); --picker-muted: var(--nz-muted-fg); --picker-border: var(--nz-border); --picker-accent: var(--nz-blue);
+}
+:root.theme-nezha .server-detail-backdrop {
+  backdrop-filter: none;
+}
+:root.theme-nezha .mini-detail-dialog {
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px var(--nz-ring), 0 20px 40px -20px rgb(0 0 0 / 25%);
+}
+
+@media (min-width: 768px) {
+  .nz-app {
+    padding: 20px 24px 0;
+  }
+  .nz-greeting {
+    margin-top: 64px;
+  }
+  .nz-overview-card > p {
+    font-size: 16px;
+  }
+  .nz-card-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .nz-server {
+    padding: 12px 20px;
+  }
+}
+@media (min-width: 1024px) {
+  .nz-overview {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .nz-server {
+    flex-direction: row;
+  }
+  .nz-server .nz-server-name {
+    width: 140px;
+    flex-shrink: 0;
+  }
+  .nz-server-body {
+    min-width: 0;
+    flex: 1;
+    align-items: stretch;
+  }
+  .nz-server .nz-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .nz-server .nz-metrics > div {
+    min-width: 0;
+  }
+}
+/* 窄屏卡片（一列或中屏两列）：内容整体居中——名字一行，计费信息并排在下面，指标五列铺满并居中 */
+@media (max-width: 1023px) {
+  .nz-server {
+    align-items: stretch;
+    gap: 10px;
+  }
+  .nz-server.is-offline {
+    min-height: 0;
+  }
+  /* 在线点、国旗、名字同一行居中，计费信息另起一行（名字块拆开参与排版） */
+  .nz-server-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px 8px;
+    text-align: center;
+  }
+  .nz-server-name > div {
+    display: contents;
+  }
+  .nz-server-name > div > p {
+    font-size: 13px;
+  }
+  .nz-billing {
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px 10px;
+  }
+  .nz-billing p {
+    font-size: 11px;
+  }
+  .nz-billing .nz-remain {
+    margin-top: 0;
+  }
+  .nz-server-body {
+    align-items: stretch;
+  }
+  .nz-server .nz-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .nz-server .nz-metrics > div {
+    min-width: 0;
+    align-items: center;
+    text-align: center;
+  }
+  .nz-server .nz-metrics .nz-usage {
+    width: 100%;
+  }
+  .nz-server .nz-metrics strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nz-plan {
+    justify-content: center;
+    margin-top: 0;
+  }
+}
+@media (max-width: 640px) {
+  .nz-brand small,
+  .nz-separator {
+    display: none;
+  }
+  .nz-handles {
+    gap: 6px;
+  }
+  .nz-controls {
+    flex-wrap: wrap;
+  }
+  .nz-controls-start {
+    flex-basis: 100%;
+  }
+  .nz-search {
+    flex: 1;
+  }
+  .nz-search input {
+    width: 100%;
+  }
+  .nz-network-total {
+    font-size: 10px;
+  }
+}

@@ -1,0 +1,3440 @@
+import { ThemeSelect } from './ThemePicker'
+import { useNetworkSpeed } from './use-network-speed'
+import { ConnectionCounts, UnlockButton, UnlockDetails } from './ServerCapabilities'
+import { ConnectionHistory } from './ConnectionHistory'
+import { SystemTrendChart } from './deferred'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Activity, ArrowDown, ArrowUp, CalendarClock, CheckCircle2, ChevronRight, CreditCard, Crown, Globe2, Gauge, Layers, Moon, Radio, Server, ShieldCheck, Sparkles, SunMoon, Target, X, XCircle } from 'lucide-react'
+import type { ForwardChainData, ForwardChainTraffic, ForwardTrafficServer, ForwardChainBucket, ProbePingSeries, ProbeServer, ProbePayload, ThemeName } from './types'
+import { Twemoji } from './Twemoji'
+import { PasskeyLogin } from './PasskeyLogin'
+import { getThemeOverride, parseThemeName } from './use-probe'
+import { EXTRA_LICENSE_BADGES, HEADER_LICENSE_BADGES } from './license-badges'
+import { FLAG_OPTIONS } from './country-flag'
+import { displayServerName } from './server-name'
+import { dailyTrafficRows, hasMoreDailyTraffic, hasTrafficPeriod, trafficPeriodText, trafficRuleLabel, type TrafficRange } from './traffic-display'
+import { BlackGoldGlobe, type PremiumProbeRegion } from './BlackGoldGlobe'
+import { useProbeRange } from './use-probe-range'
+import { probeBucketLabel } from './probe-ranges'
+import { CYCLE_LABELS, CYCLE_MONTHS, expiryTimestamp, isPermanent } from './renewal'
+import './premium-probe.css'
+import { historyPingSeries, isIpv6Ping, primaryPing } from './ping-groups'
+import { serverHealth, averageLatency, percentage, resourcePercentage } from './server-health'
+import { availabilityCells, availabilityPct, chainLiveSpeed, formatAvailability, formatJitter, FORWARD_TRAFFIC_NOTE, FORWARD_TRAFFIC_SETTLE_MINUTES } from './forward-model'
+import { LazyCard } from './LazyCard'
+
+type ProbeData = ProbePayload
+
+function cn(...values: Array<string | false | null | undefined>): string {
+  return values.filter(Boolean).join(' ')
+}
+
+const LICENSE_CYCLE_MS = 5596 // 主控 license-nameplate 实测周期(2026-08-17)
+const LICENSE_REVEAL_END = 0.36
+const licenseStarPalette = ['#8c5d17', '#d7a63d', '#f2d78a', '#fff1b9', '#c78e24']
+const licenseClamp = (value: number, min: number, max: number) =>
+  value < min ? min : value > max ? max : value
+const licenseRandom = (min: number, max: number) => min + Math.random() * (max - min)
+const licenseEaseOutBack = (value: number) => {
+  const strength = 1.70158
+  return (
+    1 +
+    (strength + 1) * Math.pow(value - 1, 3) +
+    strength * Math.pow(value - 1, 2)
+  )
+}
+const licenseEaseInBack = (value: number) => {
+  const strength = 1.70158
+  return (strength + 1) * value * value * value - strength * value * value
+}
+
+function LicenseNameplate({ label }: { label: string }) {
+  const plateRef = useRef<HTMLSpanElement>(null)
+  const textRef = useRef<HTMLSpanElement>(null)
+  const starsRef = useRef<HTMLSpanElement>(null)
+  const shineRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    const plate = plateRef.current
+    const text = textRef.current
+    const stars = starsRef.current
+    const shine = shineRef.current
+    if (!plate || !text || !stars || !shine) return
+
+    stars.innerHTML = ''
+    const height = stars.clientHeight || 24
+    const makeStar = (topFor: (size: number) => number) => {
+      const star = document.createElement('i')
+      star.className = 'spark'
+      star.style.color =
+        licenseStarPalette[Math.floor(Math.random() * licenseStarPalette.length)]
+      const size = Math.round(licenseRandom(8, 13))
+      star.style.width = `${size}px`
+      star.style.height = `${size}px`
+      star.style.top = `${Math.round(topFor(size))}px`
+      star.style.left = `${Math.round(licenseRandom(0, 12))}px`
+      stars.appendChild(star)
+    }
+    for (let index = 0; index < 5; index++) {
+      makeStar((size) => licenseRandom(0, Math.max(0, height - size)))
+    }
+    makeStar((size) => -size * 0.6)
+    makeStar((size) => height - size * 0.4)
+
+    let width = plate.offsetWidth
+    const updateWidth = () => {
+      width = plate.offsetWidth
+    }
+    window.addEventListener('resize', updateWidth)
+
+    let frameID = 0
+    const start = performance.now()
+    const frame = (now: number) => {
+      const progress = ((now - start) % LICENSE_CYCLE_MS) / LICENSE_CYCLE_MS
+      const reveal = licenseClamp(progress / LICENSE_REVEAL_END, 0, 1)
+      let rotateX = 0
+      let scale = 1
+      let opacity = 1
+      if (progress < 0.08) {
+        const amount = progress / 0.08
+        const eased = licenseEaseOutBack(amount)
+        rotateX = -92 * (1 - eased)
+        scale = 0.86 + 0.14 * eased
+        opacity = licenseClamp(amount * 2.2, 0, 1)
+      } else if (progress > 0.85) {
+        const amount = (progress - 0.85) / 0.15
+        const eased = licenseEaseInBack(amount)
+        rotateX = 84 * eased
+        scale = 1 - 0.14 * eased
+        opacity = licenseClamp(1 - amount * 1.5, 0, 1)
+      }
+      const starOpacity =
+        progress < 0.04
+          ? progress / 0.04
+          : progress < 0.32
+            ? 1
+            : progress < 0.37
+              ? licenseClamp(1 - (progress - 0.32) / 0.05, 0, 1)
+              : 0
+      const shineProgress = licenseClamp((progress - 0.42) / 0.28, 0, 1)
+      const shineActive = progress >= 0.42 && progress <= 0.7
+      const shineOpacity = shineActive
+        ? shineProgress < 0.1
+          ? shineProgress / 0.1
+          : shineProgress > 0.85
+            ? licenseClamp((1 - shineProgress) / 0.15, 0, 1)
+            : 1
+        : 0
+
+      plate.style.opacity = String(opacity)
+      plate.style.transform = `perspective(340px) rotateX(${rotateX.toFixed(2)}deg) scale(${scale.toFixed(3)})`
+      text.style.clipPath = `inset(0 ${((1 - reveal) * 100).toFixed(2)}% 0 0)`
+      stars.style.transform = `translateX(${(13 + reveal * (width - 26)).toFixed(1)}px)`
+      stars.style.opacity = String(starOpacity)
+      shine.style.transform = `translateX(${(((-55 + shineProgress * 165) / 100) * width).toFixed(1)}px) skewX(-16deg)`
+      shine.style.opacity = String(shineOpacity)
+      frameID = requestAnimationFrame(frame)
+    }
+    frameID = requestAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frameID)
+      window.removeEventListener('resize', updateWidth)
+    }
+  }, [])
+
+  return (
+    <span ref={plateRef} className='license-nameplate'>
+      <span ref={textRef} className='np-text'>{label}</span>
+      <span className='np-shine-clip' aria-hidden='true'>
+        <span ref={shineRef} className='np-shine' />
+      </span>
+      <span ref={starsRef} className='np-stars' aria-hidden='true' />
+    </span>
+  )
+}
+
+function formatTrafficCompact(value = 0): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  let size = Math.max(0, value)
+  let index = 0
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024
+    index++
+  }
+  const digits = index === 0 || size >= 100 ? 0 : size >= 10 ? 1 : 2
+  return `${size.toFixed(digits)} ${units[index]}`
+}
+
+type PremiumProbePageProps = {
+  data?: ProbeData
+  isLoading: boolean
+  isError: boolean
+  // 主题切换回调（经典界面 ThemeSelect 同款语义: name=null 表示跟随主控）
+  onThemeChange?: (name: ThemeName | null) => void
+}
+
+type StatusFilter = 'all' | 'online' | 'offline'
+type PremiumProbeView = 'card' | 'network' | 'resource'
+
+function PremiumThemeSelect({ onThemeChange }: { onThemeChange?: PremiumProbePageProps['onThemeChange'] }) {
+  return <ThemeSelect value={getThemeOverride()} onChange={name => onThemeChange?.(name)} buttonClassName="premium-probe-login" />
+}
+
+type TrendSample = {
+  label: string
+  value: number
+  formatted: string
+}
+
+function StandaloneLicenseBadge({
+  badge,
+  className,
+  animated = false,
+}: {
+  badge?: ProbePayload['license_badge']
+  className?: string
+  animated?: boolean
+}) {
+  // 本地支持多勋章: 数组取首个（与经典界面 Footer 合并展示不同, Premium 单铭牌位）
+  const first = Array.isArray(badge) ? badge[0] : badge
+  const label = [first?.name?.trim(), first?.display_name?.trim()]
+    .filter(Boolean)
+    .join(' · ')
+  if (!label) return null
+  return (
+    <span className={cn('premium-probe-license-badge', className)}>
+      {animated ? (
+        <LicenseNameplate label={label} />
+      ) : (
+        <span className='premium-probe-license-name'>{label}</span>
+      )}
+    </span>
+  )
+}
+
+const regionNames = Object.fromEntries(
+  FLAG_OPTIONS.map((item) => [item.code, item.label])
+)
+
+const placeNames: Record<string, string> = {
+  tokyo: '东京',
+  osaka: '大阪',
+  taichung: '台中',
+  taipei: '台北',
+  'hong kong': '香港',
+  singapore: '新加坡',
+  seoul: '首尔',
+  'los angeles': '洛杉矶',
+  'san jose': '圣何塞',
+  frankfurt: '法兰克福',
+  london: '伦敦',
+}
+
+function flagToCountryCode(value?: string): string {
+  const points = [...(value?.trim() || '')].map(
+    (character) => character.codePointAt(0) || 0
+  )
+  if (
+    points.length === 2 &&
+    points.every((point) => point >= 0x1f1e6 && point <= 0x1f1ff)
+  ) {
+    return points
+      .map((point) => String.fromCharCode(point - 0x1f1e6 + 65))
+      .join('')
+  }
+  const code =
+    value
+      ?.trim()
+      .split(/[·,\s]+/)[0]
+      ?.toUpperCase() || ''
+  return /^[A-Z]{2}$/.test(code) ? code : ''
+}
+
+function countryFlag(code?: string): string {
+  if (!code || !/^[A-Z]{2}$/i.test(code)) return ''
+  return String.fromCodePoint(
+    ...[...code.toUpperCase()].map(
+      (character) => 0x1f1e6 + character.charCodeAt(0) - 65
+    )
+  )
+}
+
+function localizedRegionLabel(server: ProbeServer, code?: string): string {
+  const normalizedCode = code || serverRegionKey(server)
+  const flag = countryFlag(normalizedCode)
+  const country = regionNames[normalizedCode] || ''
+  const rawPlace = server.region_city || server.region_name || ''
+  const normalizedPlace = rawPlace.trim().replace(/[，,、·\s]+$/u, '')
+  const place = placeNames[normalizedPlace.toLowerCase()] || normalizedPlace
+  const detail =
+    place && place !== country
+      ? [country, place].filter(Boolean).join(' · ')
+      : country || place
+  return [flag, detail || server.region || '未知地区'].filter(Boolean).join(' ')
+}
+
+function formatAxisDateTime(unixSeconds: number): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(unixSeconds * 1000))
+}
+
+function serverRegionKey(server: ProbeServer): string {
+  return (
+    // 手动选的国旗（region）优先，按 IP 自动识别的 region_country 兜底（见 server-format probeRegion）
+    flagToCountryCode(server.region) ||
+    server.region_country ||
+    server.region?.trim() ||
+    'UNKNOWN'
+  ).toUpperCase()
+}
+
+function buildRegions(servers: ProbeServer[]): PremiumProbeRegion[] {
+  const groups = new Map<string, ProbeServer[]>()
+  for (const server of servers) {
+    const key = serverRegionKey(server)
+    const group = groups.get(key) || []
+    group.push(server)
+    groups.set(key, group)
+  }
+  return [...groups].map(([code, group]) => {
+    const sample = group[0]
+    return {
+      code,
+      label: localizedRegionLabel(sample, code),
+      total: group.length,
+      online: group.filter((server) => server.online).length,
+    }
+  })
+}
+
+function displayReturnRoute(route: string): string {
+  return route.toUpperCase().replace(/[^A-Z0-9]/g, '') === 'CMIN'
+    ? 'CMI'
+    : route
+}
+
+function summarizeSevenDayTraffic(servers: ProbeServer[]) {
+  const trafficDates = servers
+    .flatMap((server) => server.daily_traffic || [])
+    .map((item) => item.date)
+    .sort()
+  const latest = trafficDates[trafficDates.length - 1]
+  if (!latest) return []
+  const end = new Date(`${latest}T00:00:00Z`)
+  return Array.from({ length: 7 }, (_, index) => {
+    const current = new Date(end)
+    current.setUTCDate(end.getUTCDate() - 6 + index)
+    const date = current.toISOString().slice(0, 10)
+    let uplink = 0
+    let downlink = 0
+    for (const server of servers) {
+      const day = server.daily_traffic?.find((item) => item.date === date)
+      uplink += day?.uplink || 0
+      downlink += day?.downlink || 0
+    }
+    return { date, uplink, downlink, total: uplink + downlink }
+  })
+}
+
+function resourcePressureRows(servers: ProbeServer[]) {
+  return servers
+    .map((server, index) => {
+      const cpu = server.cpu_pct
+      const mem = resourcePercentage(server.mem_used, server.mem_total)
+      const disk = resourcePercentage(server.disk_used, server.disk_total)
+      return {
+        index,
+        name: server.name || `#${index + 1}`,
+        cpu,
+        mem,
+        disk,
+        pressure: Math.max(cpu ?? -1, mem ?? -1, disk ?? -1),
+      }
+    })
+    .sort((left, right) => right.pressure - left.pressure)
+}
+
+function trafficQuotaRows(servers: ProbeServer[]) {
+  return servers
+    .map((server, index) => ({
+      index,
+      name: server.name || `#${index + 1}`,
+      used: server.traffic_used ?? server.traffic_used_total ?? 0,
+      limit: server.traffic_limit || 0,
+    }))
+    .filter((item) => item.limit > 0)
+    .map((item) => ({ ...item, percent: percentage(item.used, item.limit) }))
+    .sort((left, right) => right.percent - left.percent)
+}
+
+function renewalTimelineRows(servers: ProbeServer[]) {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  return servers
+    .map((server, index) => {
+      if (!server.expires_at || expiryTimestamp(server) === undefined) return undefined
+      const expiresAt = new Date(`${server.expires_at}T00:00:00`)
+      const days = Math.ceil((expiresAt.getTime() - now.getTime()) / 86400000)
+      const price =
+        server.renewal_price_cny ??
+        (server.renewal_currency === 'CNY' ? server.renewal_price : undefined)
+      const cycleMonths = CYCLE_MONTHS[server.renewal_cycle || 'month']
+      return {
+        index,
+        name: server.name || `#${index + 1}`,
+        expiresAt: server.expires_at,
+        days,
+        price,
+        monthlyPrice: price === undefined ? undefined : price / cycleMonths,
+        providerName: server.provider_name,
+        providerUrl: server.provider_url,
+      }
+    })
+    .filter((item): item is NonNullable<typeof item> => !!item)
+    .sort((left, right) => left.expiresAt.localeCompare(right.expiresAt))
+}
+
+function RenewalTimeline({
+  rows,
+}: {
+  rows: ReturnType<typeof renewalTimelineRows>
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  // 区分点击与拖动，避免横向拖动时间轴后误开服务商网站。
+  const dragRef = useRef({
+    active: false,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false,
+  })
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  const monthlyTotal = rows.reduce(
+    (total, item) => total + (item.monthlyPrice || 0),
+    0
+  )
+  const unpaidThisMonth = rows
+    .filter((item) => item.expiresAt.startsWith(currentMonth))
+    .reduce((total, item) => total + (item.price || 0), 0)
+
+  return (
+    <>
+      <div className='premium-probe-renewal-totals'>
+        <div>
+          <span>月度折算总额</span>
+          <strong>¥{monthlyTotal.toFixed(2)}</strong>
+        </div>
+        <div>
+          <span>本月未续费金额</span>
+          <strong>¥{unpaidThisMonth.toFixed(2)}</strong>
+        </div>
+        <small>按住时间轴可横向拖动</small>
+      </div>
+      {rows.length === 0 ? (
+        <p className='premium-probe-insights-empty'>暂无可用数据</p>
+      ) : (
+        <div
+          ref={trackRef}
+          className='premium-probe-renewals'
+          onPointerDown={(event) => {
+            const track = trackRef.current
+            if (!track) return
+            dragRef.current = {
+              active: true,
+              startX: event.clientX,
+              scrollLeft: track.scrollLeft,
+              moved: false,
+            }
+          }}
+          onPointerMove={(event) => {
+            const track = trackRef.current
+            if (!track || !dragRef.current.active) return
+            const dx = event.clientX - dragRef.current.startX
+            // 纯点击不捕获指针，确保服务商链接收到原生 click；超过 4px 才进入拖动。
+            if (Math.abs(dx) > 4 && !dragRef.current.moved) {
+              dragRef.current.moved = true
+              track.setPointerCapture(event.pointerId)
+            }
+            if (dragRef.current.moved) {
+              track.scrollLeft = dragRef.current.scrollLeft - dx
+            }
+          }}
+          onPointerUp={() => {
+            dragRef.current.active = false
+          }}
+          onPointerCancel={() => {
+            dragRef.current.active = false
+          }}
+        >
+          <div className='premium-probe-renewal-track'>
+            {rows.map((item) => {
+              const tone =
+                item.days < 0
+                  ? 'is-expired'
+                  : item.days <= 30
+                    ? 'is-due'
+                    : undefined
+              const inner = (
+                <>
+                  <time>{item.expiresAt}</time>
+                  <i />
+                  <Twemoji className='premium-probe-server-name'>
+                    {item.name}
+                  </Twemoji>
+                  <strong>
+                    {item.days < 0
+                      ? `已过期 ${Math.abs(item.days)} 天`
+                      : item.days === 0
+                        ? '今天到期'
+                        : `${item.days} 天后`}
+                  </strong>
+                  {item.price !== undefined && (
+                    <small>¥{item.price.toFixed(2)}</small>
+                  )}
+                </>
+              )
+
+              if (!item.providerUrl) {
+                return (
+                  <div key={item.index} className={tone}>
+                    {inner}
+                  </div>
+                )
+              }
+
+              return (
+                <a
+                  key={item.index}
+                  className={[tone, 'is-linked'].filter(Boolean).join(' ')}
+                  href={item.providerUrl}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  title={`前往 ${item.providerName || '服务商'} 续费`}
+                  onClick={(event) => {
+                    if (dragRef.current.moved) event.preventDefault()
+                  }}
+                >
+                  {inner}
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function BillingOverview({ servers }: { servers: ProbeServer[] }) {
+  const rows = servers
+    .map((server, index) => {
+      const price =
+        server.renewal_price_cny ??
+        (server.renewal_currency === 'CNY' ? server.renewal_price : undefined)
+      if (price === undefined || !Number.isFinite(price) || price < 0) return undefined
+      const cycle = server.renewal_cycle || 'month'
+      if (!CYCLE_MONTHS[cycle]) return undefined
+      return {
+        index,
+        name: server.name || `#${index + 1}`,
+        cycle: isPermanent(server) ? '永久买断' : `${CYCLE_LABELS[cycle]}付`,
+        monthly: price / CYCLE_MONTHS[cycle],
+      }
+    })
+    .filter((item): item is NonNullable<typeof item> => !!item)
+    .sort((left, right) => right.monthly - left.monthly)
+  const monthlyTotal = rows.reduce((total, item) => total + item.monthly, 0)
+  const dueIn30Days = renewalTimelineRows(servers)
+    .filter((item) => item.days >= 0 && item.days <= 30)
+    .reduce((total, item) => total + (item.price || 0), 0)
+  const maxMonthly = Math.max(1, ...rows.map((item) => item.monthly))
+
+  return (
+    <article className='premium-probe-insight-card premium-probe-billing-card'>
+      <header>
+        <h3>
+          <CreditCard />
+          账单与成本分析
+        </h3>
+        <span>按人民币月均折算</span>
+      </header>
+      {rows.length === 0 ? (
+        <p className='premium-probe-insights-empty'>暂无人民币续费价格数据</p>
+      ) : (
+        <div className='premium-probe-billing-layout'>
+          <div className='premium-probe-billing-kpis'>
+            <div>
+              <span>月均基础成本</span>
+              <strong>¥{monthlyTotal.toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>年化预算</span>
+              <strong>¥{(monthlyTotal * 12).toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>未来 30 天应续</span>
+              <strong>¥{dueIn30Days.toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>价格数据覆盖</span>
+              <strong>
+                {rows.length}/{servers.length} 台
+              </strong>
+            </div>
+          </div>
+          <div className='premium-probe-billing-rank'>
+            <div className='is-head'>
+              <span>月均成本排行</span>
+              <small>折算金额</small>
+            </div>
+            {rows.slice(0, 6).map((item) => (
+              <div key={item.index}>
+                <Twemoji>{item.name}</Twemoji>
+                <i>
+                  <b
+                    style={{ width: `${(item.monthly / maxMonthly) * 100}%` }}
+                  />
+                </i>
+                <strong>¥{item.monthly.toFixed(2)}</strong>
+                <small>{item.cycle}</small>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </article>
+  )
+}
+
+function DataInsightPanels({
+  servers,
+  showTraffic7D,
+  showResourceHeatmap,
+  showTrafficQuota,
+  showRenewalTimeline,
+}: {
+  servers: ProbeServer[]
+  showTraffic7D: boolean
+  showResourceHeatmap: boolean
+  showTrafficQuota: boolean
+  showRenewalTimeline: boolean
+}) {
+  const traffic = summarizeSevenDayTraffic(servers)
+  const heatmap = resourcePressureRows(servers)
+  const quota = trafficQuotaRows(servers)
+  const renewals = renewalTimelineRows(servers)
+  const maxTraffic = Math.max(1, ...traffic.map((item) => item.total))
+  const primaryInsightCount =
+    Number(showTraffic7D) +
+    Number(showResourceHeatmap) +
+    Number(showTrafficQuota)
+  const isPlatinum = document.documentElement.classList.contains('platinum')
+  const heatColor = (value?: number) => {
+    if (value === undefined) return isPlatinum ? 'rgba(168,124,34,.08)' : 'rgba(255,255,255,.035)'
+    if (value >= 85) return 'rgba(239,91,100,.72)'
+    if (value >= 60) return 'rgba(224,156,58,.62)'
+    if (isPlatinum) return `rgba(168,124,34,${0.12 + value / 220})`
+    return `rgba(216,180,106,${0.16 + value / 180})`
+  }
+  const empty = <p className='premium-probe-insights-empty'>暂无可用数据</p>
+
+  return (
+    <section
+      className={cn(
+        'premium-probe-insights',
+        `has-${primaryInsightCount}-primary`
+      )}
+    >
+      {showTraffic7D && (
+        <article className='premium-probe-insight-card'>
+          <header>
+            <h3>
+              <Activity />近 7 日上下行流量
+            </h3>
+            <span>
+              <i className='is-down' />
+              下行 <i className='is-up' />
+              上行
+            </span>
+          </header>
+          {traffic.length === 0 ? (
+            empty
+          ) : (
+            <div className='premium-probe-seven-days'>
+              {traffic.map((item) => (
+                <div
+                  key={item.date}
+                  title={`${item.date} · ${formatTrafficCompact(item.total)}`}
+                >
+                  <div>
+                    <i
+                      className='is-up'
+                      style={{ height: `${(item.uplink / maxTraffic) * 100}%` }}
+                    />
+                    <i
+                      className='is-down'
+                      style={{
+                        height: `${(item.downlink / maxTraffic) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <span>{item.date.slice(5).replace('-', '/')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+      )}
+
+      {showResourceHeatmap && (
+        <article className='premium-probe-insight-card'>
+          <header>
+            <h3>
+              <Gauge />
+              资源压力热力图
+            </h3>
+            <span>CPU · MEM · DISK</span>
+          </header>
+          {heatmap.length === 0 ? (
+            empty
+          ) : (
+            <div className='premium-probe-heatmap'>
+              <div className='is-head'>
+                <span>服务器</span>
+                <b>CPU</b>
+                <b>内存</b>
+                <b>硬盘</b>
+              </div>
+              {heatmap.map((item) => (
+                <div key={item.index}>
+                  <Twemoji className='premium-probe-server-name'>
+                    {item.name}
+                  </Twemoji>
+                  {[item.cpu, item.mem, item.disk].map((value, index) => (
+                    <b key={index} style={{ background: heatColor(value) }}>
+                      {value === undefined ? '—' : `${value.toFixed(0)}%`}
+                    </b>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+      )}
+
+      {showTrafficQuota && (
+        <article className='premium-probe-insight-card'>
+          <header>
+            <h3>
+              <Gauge />
+              流量额度使用率排行
+            </h3>
+            <span>{quota.length} 台有限额</span>
+          </header>
+          {quota.length === 0 ? (
+            empty
+          ) : (
+            <div className='premium-probe-quota-rank'>
+              {quota.map((item, rank) => (
+                <div key={item.index}>
+                  <em>{rank + 1}</em>
+                  <Twemoji className='premium-probe-server-name'>
+                    {item.name}
+                  </Twemoji>
+                  <i>
+                    <b style={{ width: `${item.percent}%` }} />
+                  </i>
+                  <strong>{item.percent.toFixed(0)}%</strong>
+                  <small>
+                    {formatTrafficCompact(item.used)} /{' '}
+                    {formatTrafficCompact(item.limit)}
+                  </small>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+      )}
+
+      {showRenewalTimeline && <BillingOverview servers={servers} />}
+
+      {showRenewalTimeline && (
+        <article className='premium-probe-insight-card premium-probe-renewal-card'>
+          <header>
+            <h3>
+              <CalendarClock />
+              服务器续费与到期时间轴
+            </h3>
+            <span>按到期日排序</span>
+          </header>
+          <RenewalTimeline rows={renewals} />
+        </article>
+      )}
+    </section>
+  )
+}
+
+function PremiumResourceOverview({
+  servers,
+  visibility,
+}: {
+  servers: ProbeServer[]
+  visibility: {
+    traffic7D: boolean
+    resourceHeatmap: boolean
+    trafficQuota: boolean
+    renewalTimeline: boolean
+  }
+}) {
+  const enabledCount = Object.values(visibility).filter(Boolean).length
+
+  return (
+    <section className='premium-probe-resource-view'>
+      <SmartSummary servers={servers} />
+      <header className='premium-probe-resource-heading'>
+        <div>
+          <span>
+            <Gauge />
+          </span>
+          <div>
+            <h2>资源概况</h2>
+            <p>集中查看集群资源、流量额度与服务器续费状态</p>
+          </div>
+        </div>
+        <strong>
+          {servers.length} 台服务器 · {enabledCount} 个模块
+        </strong>
+      </header>
+
+      {enabledCount > 0 ? (
+        <DataInsightPanels
+          servers={servers}
+          showTraffic7D={visibility.traffic7D}
+          showResourceHeatmap={visibility.resourceHeatmap}
+          showTrafficQuota={visibility.trafficQuota}
+          showRenewalTimeline={visibility.renewalTimeline}
+        />
+      ) : (
+        <div className='premium-probe-resource-empty'>
+          主控暂未启用资源概况模块
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SmartSummary({ servers }: { servers: ProbeServer[] }) {
+  const online = servers.filter((server) => server.online).length
+  const attention = servers.filter(
+    (server) => serverHealth(server).score < 75
+  ).length
+  const due = renewalTimelineRows(servers).filter(
+    (item) => item.days >= 0 && item.days <= 14
+  ).length
+  const lossy = servers
+    .map((server) => ({
+      server,
+      loss: Math.max(-1, ...primaryPing(server.ping).map((item) => item.loss_pct)),
+    }))
+    .sort((left, right) => right.loss - left.loss)[0]
+  const parts = [`${online}/${servers.length} 台服务器在线`]
+  if (attention > 0) parts.push(`${attention} 台需要关注`)
+  if (lossy?.loss >= 3)
+    parts.push(
+      `${localizedRegionLabel(lossy.server)}节点最高丢包 ${lossy.loss.toFixed(1)}%`
+    )
+  if (due > 0) parts.push(`${due} 台将在 14 天内到期`)
+  if (parts.length === 1 && online === servers.length && servers.length > 0)
+    parts.push('当前未发现明显异常')
+
+  return (
+    <section className='premium-probe-smart-summary'>
+      <ShieldCheck />
+      <div>
+        <span>智能运行摘要</span>
+        <strong>{parts.join('，')}。</strong>
+      </div>
+    </section>
+  )
+}
+
+function SpeedSnapshot({
+  label,
+  value,
+  samples,
+}: {
+  label: string
+  value: string
+  samples: TrendSample[]
+}) {
+  return (
+    <div className='premium-probe-speed-snapshot'>
+      <div className='premium-probe-speed-heading'>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+      <InteractiveTrend samples={samples} />
+      <div className='premium-probe-speed-meta'>
+        <small>逐次推送 · 秒级时间</small>
+        <small>{samples.length} 个实时采样点</small>
+      </div>
+    </div>
+  )
+}
+
+function chartPath(samples: number[], fixedCeiling?: number) {
+  if (!samples.length)
+    return { line: '', area: '', points: [], last: undefined }
+  const width = 260
+  const height = 54
+  const baseline = height - 3
+  const ceiling = fixedCeiling || Math.max(...samples, 1) * 1.08
+  const points = samples.map((sample, index) => ({
+    x: samples.length === 1 ? width : (index / (samples.length - 1)) * width,
+    y:
+      baseline -
+      (Math.min(ceiling, Math.max(0, sample)) / ceiling) * (height - 10),
+  }))
+  const line = points
+    .map(
+      (point, index) =>
+        `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`
+    )
+    .join(' ')
+  return {
+    line,
+    area: `${line} L ${width} ${baseline} L ${points[0].x.toFixed(2)} ${baseline} Z`,
+    points,
+    last: points[points.length - 1],
+  }
+}
+
+function InteractiveTrend({
+  samples,
+  compact = false,
+  showArea = true,
+}: {
+  samples: TrendSample[]
+  compact?: boolean
+  showArea?: boolean
+}) {
+  const [activeIndex, setActiveIndex] = useState<number>()
+  const chart = chartPath(samples.map((sample) => sample.value))
+  const activeSample =
+    activeIndex === undefined ? undefined : samples[activeIndex]
+  const activePoint =
+    activeIndex === undefined ? undefined : chart.points[activeIndex]
+  const tooltipLeft = activePoint
+    ? Math.max(12, Math.min(88, (activePoint.x / 260) * 100))
+    : 50
+
+  return (
+    <div
+      className={cn(
+        'premium-probe-speed-chart premium-probe-interactive-chart',
+        compact && 'is-compact'
+      )}
+      onPointerMove={(event) => {
+        if (!samples.length) return
+        const bounds = event.currentTarget.getBoundingClientRect()
+        const ratio = Math.max(
+          0,
+          Math.min(1, (event.clientX - bounds.left) / bounds.width)
+        )
+        setActiveIndex(Math.round(ratio * (samples.length - 1)))
+      }}
+      onPointerLeave={() => setActiveIndex(undefined)}
+    >
+      <svg viewBox='0 0 260 54' preserveAspectRatio='none' aria-hidden='true'>
+        <line x1='0' y1='51' x2='260' y2='51' />
+        {samples.length > 1 && showArea && (
+          <path className='is-area' d={chart.area} />
+        )}
+        {samples.length > 1 && <path className='is-line' d={chart.line} />}
+        {chart.last && !activePoint && (
+          <circle cx={chart.last.x} cy={chart.last.y} r='2.5' />
+        )}
+        {activePoint && (
+          <>
+            <line
+              className='is-cursor'
+              x1={activePoint.x}
+              y1='3'
+              x2={activePoint.x}
+              y2='51'
+            />
+            <circle cx={activePoint.x} cy={activePoint.y} r='3' />
+          </>
+        )}
+      </svg>
+      {activeSample && (
+        <div
+          className='premium-probe-chart-tooltip'
+          style={{ left: `${tooltipLeft}%` }}
+        >
+          <span>{activeSample.label}</span>
+          <strong>{activeSample.formatted}</strong>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DailyTrafficTrend({ servers }: { servers: ProbeServer[] }) {
+  const container = useRef<HTMLDivElement>(null)
+  const [visibleDays, setVisibleDays] = useState(7)
+  const allDays = useMemo(() => {
+    const totals = new Map<
+      string,
+      { date: string; uplink: number; downlink: number; total: number }
+    >()
+    for (const server of servers) {
+      for (const day of server.daily_traffic || []) {
+        const current = totals.get(day.date) || {
+          date: day.date,
+          uplink: 0,
+          downlink: 0,
+          total: 0,
+        }
+        current.uplink += day.uplink || 0
+        current.downlink += day.downlink || 0
+        current.total += day.total || day.uplink + day.downlink
+        totals.set(day.date, current)
+      }
+    }
+    return [...totals.values()].sort((left, right) =>
+      left.date.localeCompare(right.date)
+    )
+  }, [servers])
+
+  useEffect(() => {
+    const element = container.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      const count = Math.max(
+        7,
+        Math.min(18, Math.floor(entry.contentRect.width / 34))
+      )
+      setVisibleDays(count)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  const days = allDays.slice(-visibleDays)
+  const latest = days[days.length - 1]
+  const samples = days.map((day, index) => ({
+    label: index === days.length - 1 ? `今日 ${day.date}` : day.date,
+    value: day.total,
+    formatted: formatTrafficCompact(day.total),
+  }))
+
+  return (
+    <div
+      ref={container}
+      className='premium-probe-overview-chart-card premium-probe-daily-trend'
+    >
+      <div className='premium-probe-overview-chart-heading'>
+        <span>每日流量趋势</span>
+        <strong>
+          今日 {latest ? formatTrafficCompact(latest.total) : '—'}
+        </strong>
+      </div>
+      <InteractiveTrend samples={samples} />
+      <div className='premium-probe-speed-meta'>
+        <small>{days[0]?.date.slice(5) || '暂无历史'}</small>
+        <small>
+          {latest ? `今日 ${latest.date.slice(5)} · ${days.length} 天` : ''}
+        </small>
+      </div>
+    </div>
+  )
+}
+
+function TrafficHotspots({ servers }: { servers: ProbeServer[] }) {
+  const networkSpeed = useNetworkSpeed()
+  const ranked = servers
+    .map((server, index) => ({
+      server,
+      index,
+      speed: (server.download_speed || 0) + (server.upload_speed || 0),
+    }))
+    .sort((left, right) => right.speed - left.speed)
+  const total = ranked.reduce((sum, row) => sum + row.speed, 0)
+  const rows = ranked.slice(0, 5)
+
+  return (
+    <div className='premium-probe-overview-chart-card premium-probe-hotspots'>
+      <div className='premium-probe-overview-chart-heading'>
+        <span>实时流量热点</span>
+        <strong>{networkSpeed(total)}</strong>
+      </div>
+      <div className='premium-probe-hotspot-list'>
+        {rows.map((row) => {
+          const share = total > 0 ? (row.speed / total) * 100 : 0
+          return (
+            <div key={`${row.server.name || 'server'}-${row.index}`}>
+              <Twemoji>{row.server.name || `#${row.index + 1}`}</Twemoji>
+              <i>
+                <b style={{ width: `${share}%` }} />
+              </i>
+              <strong>{share.toFixed(0)}%</strong>
+            </div>
+          )
+        })}
+      </div>
+      <div className='premium-probe-speed-meta'>
+        <small>当前上下行带宽贡献</small>
+        <small>TOP {rows.length}</small>
+      </div>
+    </div>
+  )
+}
+
+function MetricBar({
+  label,
+  value,
+  percent,
+}: {
+  label: string
+  value: string
+  percent?: number
+}) {
+  return (
+    <div className='premium-probe-resource'>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <i>
+        <b style={{ width: `${percent ?? 0}%` }} />
+      </i>
+    </div>
+  )
+}
+
+function pingTargetID(series: ProbePingSeries): string {
+  return series.key?.trim() || `${series.label}|${series.isp || ''}`
+}
+
+function aggregatePingBuckets(series: ProbePingSeries[]) {
+  const count = Math.max(0, ...series.map((item) => item.buckets.length))
+  return Array.from({ length: count }, (_, index) => {
+    const latency: number[] = []
+    const loss: number[] = []
+    for (const item of series) {
+      const offset = count - item.buckets.length
+      const bucket = item.buckets[index - offset]
+      if (!bucket) continue
+      if (bucket.ms >= 0) latency.push(bucket.ms)
+      if (bucket.loss >= 0) loss.push(bucket.loss)
+    }
+    return {
+      ms: latency.length
+        ? latency.reduce((total, value) => total + value, 0) / latency.length
+        : undefined,
+      loss: loss.length
+        ? loss.reduce((total, value) => total + value, 0) / loss.length
+        : undefined,
+    }
+  })
+}
+
+const probeLineColors = [
+  '#f1cb70',
+  '#72cf72',
+  '#67b7dc',
+  '#e47b83',
+  '#b58ae4',
+  '#e79c55',
+  '#63c7b2',
+  '#d7d06d',
+  '#d982bd',
+  '#91a7e8',
+]
+
+function MultiTargetLatencyChart({
+  series,
+  bucketSec,
+  generatedAt,
+}: {
+  series: ProbePingSeries[]
+  bucketSec: number
+  generatedAt: number
+}) {
+  const [activeIndex, setActiveIndex] = useState<number>()
+  const [activeY, setActiveY] = useState<number>()
+  const chartTopRef = useRef(0)
+  const width = 420
+  const height = 84
+  const baseline = height - 8
+  const count = Math.max(0, ...series.map((item) => item.buckets.length))
+  const values = series.flatMap((item) =>
+    item.buckets.map((bucket) => bucket.ms).filter((value) => value >= 0)
+  )
+  const ceiling = Math.max(100, ...values) * 1.08
+  const paths = series.map((item) => {
+    const offset = count - item.buckets.length
+    let open = false
+    const commands: string[] = []
+    for (let index = 0; index < count; index++) {
+      const bucket = item.buckets[index - offset]
+      if (!bucket || bucket.ms < 0) {
+        open = false
+        continue
+      }
+      const x = count <= 1 ? width : (index / (count - 1)) * width
+      const y =
+        baseline - (Math.min(ceiling, bucket.ms) / ceiling) * (height - 18)
+      commands.push(`${open ? 'L' : 'M'} ${x.toFixed(2)} ${y.toFixed(2)}`)
+      open = true
+    }
+    return commands.join(' ')
+  })
+  const cursorX =
+    activeIndex === undefined || count <= 1
+      ? undefined
+      : (activeIndex / (count - 1)) * width
+  const end = generatedAt - (generatedAt % bucketSec)
+  const activeTimestamp =
+    activeIndex === undefined
+      ? undefined
+      : end - (count - 1 - activeIndex) * bucketSec
+  const activeValues =
+    activeIndex === undefined
+      ? []
+      : series.flatMap((item, seriesIndex) => {
+          const offset = count - item.buckets.length
+          const bucket = item.buckets[activeIndex - offset]
+          return bucket && bucket.ms >= 0
+            ? [
+                {
+                  item,
+                  bucket,
+                  color: probeLineColors[seriesIndex % probeLineColors.length],
+                },
+              ]
+            : []
+        })
+  // tooltip 跟随鼠标: 默认在鼠标下方, 下方视口空间不足(按行数估算高度)时翻转到上方
+  const tooltipTop = activeY === undefined ? undefined : activeY + 14
+  const estTooltipHeight = activeValues.length * 18 + 34
+  const tooltipFlip =
+    activeY !== undefined && window.innerHeight - (chartTopRef.current + activeY) < estTooltipHeight + 16
+
+  return (
+    <div
+      className='premium-probe-multi-target-chart'
+      onPointerMove={(event) => {
+        if (!count) return
+        const bounds = event.currentTarget.getBoundingClientRect()
+        const ratio = Math.max(
+          0,
+          Math.min(1, (event.clientX - bounds.left) / bounds.width)
+        )
+        setActiveIndex(Math.round(ratio * (count - 1)))
+        setActiveY(event.clientY - bounds.top)
+        chartTopRef.current = bounds.top
+      }}
+      onPointerLeave={() => {
+        setActiveIndex(undefined)
+        setActiveY(undefined)
+      }}
+    >
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio='none'>
+        <line
+          className='is-baseline'
+          x1='0'
+          y1={baseline}
+          x2={width}
+          y2={baseline}
+        />
+        {paths.map((path, index) => (
+          <path
+            key={series[index].key || `${series[index].label}-${index}`}
+            d={path}
+            style={{ stroke: probeLineColors[index % probeLineColors.length] }}
+          />
+        ))}
+        {cursorX !== undefined && (
+          <line
+            className='is-cursor'
+            x1={cursorX}
+            y1='3'
+            x2={cursorX}
+            y2={baseline}
+          />
+        )}
+      </svg>
+      {activeTimestamp !== undefined && (
+        <div
+          className={`premium-probe-multi-tooltip${tooltipFlip ? ' is-flip' : ''}`}
+          style={{
+            left: `${Math.max(12, Math.min(88, ((cursorX || 0) / width) * 100))}%`,
+            ...(tooltipTop === undefined || tooltipFlip ? {} : { top: `${tooltipTop}px` }),
+          }}
+        >
+          <time>{formatAxisDateTime(activeTimestamp)}</time>
+          {activeValues.length ? (
+            activeValues.map(({ item, bucket, color }) => (
+              <span key={item.key || item.label}>
+                <i style={{ background: color }} />
+                <b>{item.label}</b>
+                <strong>{bucket.ms} ms</strong>
+                <small>丢包 {bucket.loss.toFixed(1)}%</small>
+              </span>
+            ))
+          ) : (
+            <small>该时间桶暂无数据</small>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// 转发链数据类型定义在 ./types(随 ProbePayload.forward 走 WS 下发)。
+
+type ForwardPayload = {
+  enabled: boolean;
+  chains: ForwardChainData[];
+  generated_at: number;
+};
+
+const forwardRoleLabel: Record<string, string> = {
+  entry: "入口",
+  mid: "中转",
+  exit: "出口",
+};
+
+function forwardLatencyClass(ms: number): string {
+  if (ms <= 0) return "is-idle";
+  if (ms < 80) return "is-good";
+  if (ms < 160) return "is-ok";
+  return "is-hi";
+}
+
+function ForwardModeToggle({
+  mode,
+  onChange,
+  showForward,
+}: {
+  mode: "server" | "forward";
+  onChange: (next: "server" | "forward") => void;
+  showForward: boolean;
+}) {
+  return (
+    <div
+      className="premium-probe-view-toggle premium-probe-network-mode-toggle"
+      role="group"
+      aria-label="网络状况视图"
+    >
+      <button
+        type="button"
+        className={mode === "server" ? "is-active" : undefined}
+        aria-pressed={mode === "server"}
+        onClick={() => onChange("server")}
+      >
+        <Server />
+        <span>按服务器</span>
+      </button>
+      {showForward && (
+        <button
+          type="button"
+          className={mode === "forward" ? "is-active" : undefined}
+          aria-pressed={mode === "forward"}
+          onClick={() => onChange("forward")}
+        >
+          <Radio />
+          <span>转发链</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ForwardTrendChart({ trend }: { trend: ForwardChainBucket[] }) {
+  if (trend.length < 2) {
+    return (
+      <div className="premium-probe-forward-trend-empty">暂无趋势数据</div>
+    );
+  }
+  const W = 900;
+  const H = 130;
+  const padT = 10;
+  const padB = 14;
+  const values = trend.map((point) => point.e2e_ms);
+  const max = Math.max(...values) * 1.12 || 1;
+  const xScale = (index: number) => (W * index) / Math.max(1, trend.length - 1);
+  const yScale = (value: number) =>
+    padT + (H - padT - padB) * (1 - value / max);
+  const line = trend
+    .map(
+      (point, index) =>
+        `${index ? "L" : "M"}${xScale(index).toFixed(1)} ${yScale(point.e2e_ms).toFixed(1)}`,
+    )
+    .join(" ");
+  const area = `${line} L${xScale(trend.length - 1).toFixed(1)} ${H - padB} L0 ${H - padB} Z`;
+  return (
+    <svg
+      className="premium-probe-forward-trend"
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <linearGradient id="fwdTrendFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="var(--pp-gold)" stopOpacity="0.22" />
+          <stop offset="1" stopColor="var(--pp-gold)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#fwdTrendFill)" />
+      <path d={line} fill="none" stroke="var(--pp-gold)" strokeWidth="2.4" />
+      <circle
+        cx={xScale(trend.length - 1)}
+        cy={yScale(values[values.length - 1])}
+        r="3.5"
+        fill="var(--pp-gold)"
+      />
+    </svg>
+  );
+}
+
+const forwardTrafficFmt = (gb: number) =>
+  gb >= 1024
+    ? `${(gb / 1024).toFixed(2)} TB`
+    : gb >= 10
+      ? `${Math.round(gb)} GB`
+      : gb > 0
+        ? `${gb.toFixed(1)} GB`
+        : "0 GB";
+
+// 转发组流量:堆叠柱状图。周期常为 1 个月,横向表格放不下,改为按转发组切换的堆叠柱状图
+// (每天一根柱,组内多台服务器堆叠),并显示所选组的周期总流量。
+function ForwardTrafficChart({ traffic }: { traffic: ForwardChainTraffic }) {
+  const groups = useMemo(() => {
+    const list: {
+      group: string;
+      role: string;
+      servers: ForwardTrafficServer[];
+      total: number;
+    }[] = [];
+    for (const srv of traffic.servers) {
+      let bucket = list.find((entry) => entry.group === srv.group);
+      if (!bucket) {
+        bucket = { group: srv.group, role: srv.role, servers: [], total: 0 };
+        list.push(bucket);
+      }
+      bucket.servers.push(srv);
+      bucket.total += srv.total_gb;
+    }
+    return list;
+  }, [traffic]);
+
+  const [tab, setTab] = useState(0);
+  const [hover, setHover] = useState<number | null>(null);
+  const activeIdx = Math.min(tab, Math.max(0, groups.length - 1));
+  const active = groups[activeIdx];
+  const days = traffic.days;
+
+  const palette = [
+    "var(--pp-gold)",
+    "#d8a84a",
+    "#b9822a",
+    "#e7c67e",
+    "#9c6f22",
+    "#f0d79a",
+  ];
+  const dayTotal = useMemo(
+    () =>
+      days.map((_, i) =>
+        (active?.servers || []).reduce(
+          (s, srv) => s + (srv.daily_gb[i] || 0),
+          0,
+        ),
+      ),
+    [days, active],
+  );
+  const max = Math.max(1e-9, ...dayTotal);
+
+  if (!active) return null;
+
+  const W = 900;
+  const H = 200;
+  const padT = 8;
+  const padB = 6;
+  const n = days.length;
+  const slot = W / Math.max(1, n);
+  const barW = Math.min(30, slot * 0.6);
+  const plotH = H - padT - padB;
+  const labelStep = n <= 12 ? 1 : Math.ceil(n / 8);
+
+  return (
+    <div className="premium-probe-forward-chart-wrap">
+      <div className="premium-probe-forward-grouptabs">
+        {groups.map((g, i) => (
+          <button
+            key={g.group}
+            type="button"
+            className={i === activeIdx ? "is-active" : undefined}
+            onClick={() => setTab(i)}
+          >
+            <span className="g">{g.group}</span>
+            <span className={`rl is-${g.role}`}>
+              {forwardRoleLabel[g.role] || g.role}
+            </span>
+            <span className="t">{forwardTrafficFmt(g.total)}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="premium-probe-forward-chart-head">
+        {hover != null && days[hover] ? (
+          <>
+            <span className="d">{days[hover].slice(5)}</span>
+            {active.servers.map((srv, si) => (
+              <span className="s" key={srv.name}>
+                <i style={{ background: palette[si % palette.length] }} />
+                <Twemoji>{srv.name}</Twemoji>
+                <b>{forwardTrafficFmt(srv.daily_gb[hover] || 0)}</b>
+              </span>
+            ))}
+            <span className="sum">合计 {forwardTrafficFmt(dayTotal[hover])}</span>
+          </>
+        ) : (
+          <span className="total">
+            {active.group} · 周期总流量 <b>{forwardTrafficFmt(active.total)}</b>
+          </span>
+        )}
+      </div>
+
+      <div className="premium-probe-forward-chart">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+          {days.map((day, i) => {
+            let acc = 0;
+            return (
+              <g
+                key={day}
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+              >
+                <rect
+                  x={slot * i}
+                  y={0}
+                  width={slot}
+                  height={H}
+                  fill="transparent"
+                />
+                {active.servers.map((srv, si) => {
+                  const v = srv.daily_gb[i] || 0;
+                  if (v <= 0) return null;
+                  const h = plotH * (v / max);
+                  const y = padT + plotH * (1 - (acc + v) / max);
+                  acc += v;
+                  return (
+                    <rect
+                      key={srv.name}
+                      x={slot * i + (slot - barW) / 2}
+                      y={y}
+                      width={barW}
+                      height={Math.max(0.6, h)}
+                      rx={1.5}
+                      fill={palette[si % palette.length]}
+                      opacity={hover == null || hover === i ? 1 : 0.32}
+                    />
+                  );
+                })}
+              </g>
+            );
+          })}
+          <line
+            x1="0"
+            y1={H - padB}
+            x2={W}
+            y2={H - padB}
+            stroke="var(--pp-border)"
+            strokeWidth="1"
+          />
+        </svg>
+        <div className="premium-probe-forward-chart-xaxis">
+          {days.map((day, i) => (
+            <span key={day}>{i % labelStep === 0 ? day.slice(5) : ""}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const routePolicyLabel: Record<string, string> = {
+  lowest_latency: "最低延迟优先",
+  failover: "按顺序故障转移",
+  weighted: "按权重分流",
+};
+
+/** 选路段:分叉那组到下一组之间并行的几条路,标出在用的那条(主控 #1136) */
+function ForwardRoutes({ chain }: { chain: ForwardChainData }) {
+  const routes = chain.routes ?? [];
+  return (
+    <div className="rroutes">
+      <div className="rr-h">
+        选路 · {routePolicyLabel[chain.route_policy ?? ""] ?? chain.route_policy}
+        {chain.failover_ms ? ` · 故障转移 ${chain.failover_ms}ms` : ""}
+      </div>
+      {routes.map((r) => (
+        <div
+          key={r.name}
+          className={`rr${r.selected ? " is-on" : ""}`}
+          title={
+            r.selected_by?.length
+              ? `正在走:${r.selected_by.join("、")}`
+              : undefined
+          }
+        >
+          <span className="rn">{r.name}</span>
+          <span className="rv">
+            {r.via.length ? `经 ${r.via.join(" → ")}` : "直连"}
+          </span>
+          <span className={`rl ${forwardLatencyClass(r.latency_ms)}`}>
+            {r.latency_ms > 0 ? `${r.latency_ms} ms` : "—"}
+          </span>
+          {r.loss_pct > 0 && <span className="rlo">丢 {r.loss_pct}%</span>}
+          {r.selected && <span className="ron">在用</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ForwardChainView({ wsChains }: { wsChains?: ForwardChainData[] }) {
+  // 优先用 WS payload 下发的转发链数据(实时);未走 WS 才拉 /api/forward 兜底。
+  const hasWS = wsChains !== undefined;
+  const [data, setData] = useState<ForwardPayload | undefined>();
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+  const [chainIdx, setChainIdx] = useState(0);
+  const networkSpeed = useNetworkSpeed();
+  useEffect(() => {
+    if (hasWS) return; // WS 有数据就不走 HTTP 轮询
+    const controller = new AbortController();
+    const load = async () => {
+      try {
+        const response = await fetch("/api/forward", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        setData(await response.json());
+        setStatus("ok");
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setStatus("error");
+        }
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 15_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [hasWS]);
+
+  const chains = hasWS ? wsChains : data?.chains || [];
+  const activeIdx = Math.min(chainIdx, Math.max(0, chains.length - 1));
+  const chain = chains[activeIdx];
+
+  if (!hasWS && status === "loading" && !data) {
+    return <div className="premium-probe-forward-empty">加载转发链数据…</div>;
+  }
+  if (!chain) {
+    return (
+      <div className="premium-probe-forward-empty">
+        暂无转发链数据（需已配置转发链并运行探测采集）
+      </div>
+    );
+  }
+
+  const nodeCount = chain.groups.reduce((n, g) => n + g.servers.length, 0);
+  const roleTally = chain.groups.reduce(
+    (acc, g) => {
+      acc[g.role] = (acc[g.role] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+  const totalGB = chain.traffic?.total_gb || 0;
+  // 主控 v0.5.6-beta.6 起才有：可用率 / 24 小时状态条 / 链级网速 / 抖动；旧主控仍是 4 张指标卡
+  const availability = availabilityPct(chain);
+  const dayCells = availabilityCells(chain);
+  const liveSpeed = chainLiveSpeed(chain);
+  const jitter = formatJitter(chain.jitter_ms);
+  const extraStats = availability !== null || liveSpeed !== null;
+  const trafficStat =
+    totalGB >= 1024
+      ? { value: (totalGB / 1024).toFixed(1), unit: "TB" }
+      : { value: Math.round(totalGB).toString(), unit: "GB" };
+
+  return (
+    <div className="premium-probe-forward">
+      {chains.length > 1 && (
+        <div className="premium-probe-forward-chainbar">
+          <Radio />
+          <span className="k">转发链</span>
+          <div className="premium-probe-forward-chaintabs">
+            {chains.map((item, index) => (
+              <button
+                key={item.name}
+                type="button"
+                className={index === activeIdx ? "is-active" : undefined}
+                onClick={() => setChainIdx(index)}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className={`premium-probe-forward-stats${extraStats ? " is-extended" : ""}`}>
+        <div className="stat is-gold">
+          <div className="k">端到端延迟</div>
+          <div className="v">
+            {chain.end_to_end_ms}
+            <span className="u">ms</span>
+          </div>
+          <div className="foot">
+            {chain.routes?.length
+              ? "入口 → 出口 · 按在用的路"
+              : "入口 → 出口 · 各组均值之和"}
+            {jitter && ` · 抖动 ${jitter}`}
+          </div>
+        </div>
+        <div className="stat is-ok">
+          <div className="k">平均丢包</div>
+          <div className="v">
+            {chain.loss_pct.toFixed(1)}
+            <span className="u">%</span>
+          </div>
+          <div className="foot">全链探测点均值</div>
+        </div>
+        {availability !== null && (
+          <div className="stat is-ok">
+            <div className="k">24 小时可用率</div>
+            <div className="v">
+              {formatAvailability(availability).replace("%", "")}
+              <span className="u">%</span>
+            </div>
+            {dayCells ? (
+              <div className="foot premium-probe-forward-cells" aria-label="近 24 小时状态">
+                {dayCells.map((cell) => (
+                  <i key={cell.key} data-tone={cell.tone} title={cell.label} />
+                ))}
+              </div>
+            ) : (
+              <div className="foot">近 24 小时</div>
+            )}
+          </div>
+        )}
+        {liveSpeed && (
+          <div className="stat is-gold">
+            <div className="k">当前网速</div>
+            <div className="v premium-probe-forward-speed">
+              <span>↓ {networkSpeed(liveSpeed.down)}</span>
+            </div>
+            <div className="foot">↑ {networkSpeed(liveSpeed.up)} · 入口在这条链上的实时流量</div>
+          </div>
+        )}
+        <div className="stat is-n">
+          <div className="k">链路结构</div>
+          <div className="v">
+            {chain.groups.length}
+            <span className="u">组</span> · {nodeCount}
+            <span className="u">节点</span>
+          </div>
+          <div className="foot">
+            入口 {roleTally.entry || 0} · 中转 {roleTally.mid || 0} · 出口{" "}
+            {roleTally.exit || 0}
+            {chain.routes?.length ? ` · 选路 ${chain.routes.length} 条` : ""}
+          </div>
+        </div>
+        <div className="stat is-gold">
+          <div className="k">周期总流量</div>
+          <div className="v">
+            {trafficStat.value}
+            <span className="u">{trafficStat.unit}</span>
+          </div>
+          <div className="foot">近 7 天全链累计 · 每 {FORWARD_TRAFFIC_SETTLE_MINUTES} 分钟更新</div>
+        </div>
+      </div>
+
+      <section className="premium-probe-forward-card">
+        <header>
+          <h3>
+            <Activity />
+            转发链探测详情
+          </h3>
+          <span>入口 → 出口 端到端延迟检测 · 5 分钟一个数据桶</span>
+        </header>
+        <div className="body">
+          <div className="ribbon">
+            {chain.groups.map((group, index) => (
+              <Fragment key={group.name}>
+                <div className={`rnode is-${group.role}`}>
+                  <span className="role">{forwardRoleLabel[group.role]}组</span>
+                  <span className="gname">{group.name}</span>
+                  <span className="gmeta">{group.servers.length} 节点</span>
+                </div>
+                {index < chain.groups.length - 1 &&
+                  (chain.routes?.length && chain.route_hop === index ? (
+                    <ForwardRoutes chain={chain} />
+                  ) : (
+                    <div className="rlink">
+                      <span className="lat">{group.to_next_ms} ms</span>
+                      <span className="arw" />
+                      <span className="lbl">→ 下一组</span>
+                    </div>
+                  ))}
+              </Fragment>
+            ))}
+          </div>
+          <ForwardTrendChart trend={chain.trend} />
+        </div>
+      </section>
+
+      <section className="premium-probe-forward-card">
+        <header>
+          <h3>
+            <Target />
+            转发组延迟详情
+          </h3>
+          <span>组间延迟 · 组内每台服务器到下一组的延迟</span>
+        </header>
+        <div className="body">
+          <div className="topo">
+            {chain.groups.map((group, index) => (
+              <Fragment key={group.name}>
+                <div className="grp">
+                  <div className="grp-h">
+                    <span className="nm">{group.name}</span>
+                    <span className={`rl is-${group.role}`}>
+                      {forwardRoleLabel[group.role]}
+                    </span>
+                  </div>
+                  <div className="grp-agg">
+                    本组 → {group.role === "exit" ? "落地目标" : "下一组"}&nbsp;
+                    <b>{group.to_next_ms} ms</b>
+                  </div>
+                  {group.servers.map((srv) => (
+                    <div className="srv" key={srv.name}>
+                      <span
+                        className={`dot ${srv.healthy ? "is-up" : "is-down"}`}
+                      />
+                      <span className="sn">
+                        <Twemoji>{srv.name}</Twemoji>
+                        {srv.route && <span className="srt">{srv.route}</span>}
+                      </span>
+                      {(srv.loss_pct ?? 0) > 0 && (
+                        <span className="sloss">丢 {srv.loss_pct}%</span>
+                      )}
+                      <span
+                        className={`slat ${forwardLatencyClass(srv.to_next_ms)}`}
+                      >
+                        {srv.to_next_ms > 0 ? `${srv.to_next_ms} ms` : "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {index < chain.groups.length - 1 &&
+                  (chain.routes?.length && chain.route_hop === index ? (
+                    <ForwardRoutes chain={chain} />
+                  ) : (
+                    <div className="tconn">
+                      <span className="cl">组间</span>
+                      <span className="cv">{group.to_next_ms} ms</span>
+                      <span className="cline" />
+                    </div>
+                  ))}
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {chain.traffic && chain.traffic.servers.length > 0 && (
+        <section className="premium-probe-forward-card">
+          <header>
+            <h3>
+              <Gauge />
+              转发组流量详情
+            </h3>
+            <span>周期内每日 · 按转发组切换 · 组内每台服务器堆叠 · {FORWARD_TRAFFIC_NOTE}</span>
+          </header>
+          <div className="body">
+            <ForwardTrafficChart traffic={chain.traffic} />
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+
+function PremiumNetworkView({
+  servers,
+  forwardChains,
+  showForward,
+}: {
+  servers: ProbeServer[]
+  forwardChains?: ForwardChainData[]
+  showForward: boolean
+}) {
+  const [netMode, setNetMode] = useState<'server' | 'forward'>('server')
+  const [serverIndex, setServerIndex] = useState(0)
+  const [target, setTarget] = useState('__all__')
+  const [visibleTargets, setVisibleTargets] = useState<string[]>([])
+  const { range, setRange, options: rangeOptions } = useProbeRange()
+  useEffect(() => {
+    if (!showForward && netMode === 'forward') setNetMode('server')
+  }, [netMode, showForward])
+  const selectedServerIndex = Math.min(
+    serverIndex,
+    Math.max(0, servers.length - 1)
+  )
+  const selectedServer = servers[selectedServerIndex]
+  const hasSelectedServer = !!selectedServer
+  const targets = useMemo(() => {
+    const result = new Map<
+      string,
+      { id: string; label: string; isp?: string }
+    >()
+    if (selectedServer) {
+      for (const series of selectedServer.ping || []) {
+        const id = pingTargetID(series)
+        if (!result.has(id)) {
+          result.set(id, { id, label: series.label, isp: series.isp })
+        }
+      }
+    }
+    return [...result.values()].sort((left, right) =>
+      left.label.localeCompare(right.label, 'zh-CN')
+    )
+  }, [selectedServer])
+  const selectedTarget =
+    target === '__all__' ||
+    target === '__custom__' ||
+    targets.some((item) => item.id === target)
+      ? target
+      : '__all__'
+  const [detail, setDetail] = useState<{
+    success: boolean
+    series: ProbePingSeries
+    all_series?: ProbePingSeries[]
+    bucket_sec: number
+    generated_at: number
+  }>()
+  useEffect(() => {
+    setDetail(undefined)
+    if (!hasSelectedServer) {
+      return
+    }
+    const controller = new AbortController()
+    const load = async () => {
+      try {
+        const params = new URLSearchParams({
+          server: String(selectedServerIndex),
+          target: '__avg__',
+          all: '1',
+          range,
+        })
+        const response = await fetch(`/api/series?${params}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const payload = await response.json() as NonNullable<typeof detail>
+        if (!controller.signal.aborted) setDetail(payload.success ? payload : undefined)
+      } catch {
+        if (!controller.signal.aborted) {
+          setDetail(undefined)
+        }
+      }
+    }
+    void load()
+    const timer = window.setInterval(load, 30_000)
+    return () => {
+      controller.abort()
+      window.clearInterval(timer)
+    }
+  }, [range, hasSelectedServer, selectedServerIndex])
+  // 主控的平均把 IPv6 目标也算进去了；有 IPv6 目标时按 IPv4 目标重算（与其他主题同一口径）
+  const averageLabel = selectedServer?.ping?.some(isIpv6Ping) ? 'IPv4 目标平均' : '全部目标平均'
+  const historySeries = detail?.success
+    ? historyPingSeries(detail.series, detail.all_series, averageLabel)
+    : []
+  const rows = selectedServer
+    ? [selectedServer].map((server) => {
+        const series = primaryPing(server.ping)
+        const effectiveSeries = detail?.success ? [historySeries[0]] : series
+        const currentLatency = effectiveSeries
+          .map((item) => item.current_ms)
+          .filter((value) => value >= 0)
+        const currentLoss = effectiveSeries
+          .map((item) => item.loss_pct)
+          .filter((value) => value >= 0)
+        return {
+          server,
+          index: selectedServerIndex,
+          series: effectiveSeries,
+          buckets: detail?.success
+            ? aggregatePingBuckets([historySeries[0]])
+            : aggregatePingBuckets(series),
+          latency: currentLatency.length
+            ? Math.round(
+                currentLatency.reduce((total, value) => total + value, 0) /
+                  currentLatency.length
+              )
+            : undefined,
+          loss: currentLoss.length
+            ? currentLoss.reduce((total, value) => total + value, 0) /
+              currentLoss.length
+            : undefined,
+        }
+      })
+    : []
+  const chartSeries = historySeries
+  const allChartTargetKeys = chartSeries.map(
+    (item) => item.key || pingTargetID(item)
+  )
+  const effectiveVisibleTargets =
+    selectedTarget === '__all__' ? allChartTargetKeys : visibleTargets
+  const visibleChartSeries = chartSeries.filter((item) =>
+    effectiveVisibleTargets.includes(item.key || pingTargetID(item))
+  )
+  const measuredRows = rows.filter((row) => row.series.length > 0)
+  const reachableRows = measuredRows.filter(
+    (row) => row.latency !== undefined && row.loss !== undefined
+  )
+  const averageMs = reachableRows.length
+    ? Math.round(
+        reachableRows.reduce((total, row) => total + (row.latency || 0), 0) /
+          reachableRows.length
+      )
+    : undefined
+  const averageLoss = reachableRows.length
+    ? reachableRows.reduce((total, row) => total + (row.loss || 0), 0) /
+      reachableRows.length
+    : undefined
+  const detailBuckets = detail?.success
+    ? detail.series.buckets.map((bucket, index, buckets) => {
+        const end =
+          detail.generated_at - (detail.generated_at % detail.bucket_sec)
+        const timestamp = end - (buckets.length - 1 - index) * detail.bucket_sec
+        return { ...bucket, timestamp }
+      })
+    : []
+
+  if (showForward && netMode === 'forward') {
+    return (
+      <section className='premium-probe-network-view'>
+        <div className='premium-probe-network-view-heading'>
+          <div>
+            <h2>
+              <Activity /> 网络状况
+            </h2>
+            <span>按转发链查看入口到出口的端到端探测、逐组延迟与流量</span>
+          </div>
+          <ForwardModeToggle mode={netMode} onChange={setNetMode} showForward={showForward} />
+        </div>
+        <ForwardChainView wsChains={forwardChains} />
+      </section>
+    )
+  }
+
+  return (
+    <section className='premium-probe-network-view'>
+      <div className='premium-probe-network-view-heading'>
+        <div>
+          <h2>
+            <Activity /> 网络状况
+          </h2>
+          <span>按服务器与其独立探测目标查看真实时间序列</span>
+        </div>
+        <div className='premium-probe-network-selectors'>
+          <label>
+            <Server />
+            <span>服务器</span>
+            <select
+              value={selectedServerIndex}
+              onChange={(event) => {
+                setServerIndex(Number(event.target.value))
+                setTarget('__all__')
+                setVisibleTargets([])
+              }}
+            >
+              {servers.map((server, index) => (
+                <option value={index} key={index}>
+                  {server.name || `#${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <Target />
+            <span>探测目标</span>
+            <select
+              value={selectedTarget}
+              onChange={(event) => {
+                const value = event.target.value
+                setTarget(value)
+                setVisibleTargets(
+                  value === '__all__'
+                    ? []
+                    : [value]
+                )
+              }}
+            >
+              <option value='__avg__'>仅显示{averageLabel.startsWith('IPv4') ? ' ' : ''}{averageLabel}</option>
+              <option value='__all__'>显示所有探测目标</option>
+              {selectedTarget === '__custom__' && (
+                <option value='__custom__'>自定义目标组合</option>
+              )}
+              {targets.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.label}
+                  {item.isp ? ` · ${item.isp}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ForwardModeToggle mode={netMode} onChange={setNetMode} showForward={showForward} />
+        </div>
+      </div>
+
+      <div className='premium-probe-network-kpis'>
+        {[
+          {
+            label: '平均延迟',
+            value: averageMs === undefined ? '—' : `${averageMs} ms`,
+            hint: '所选服务器与目标',
+          },
+          {
+            label: '平均丢包',
+            value:
+              averageLoss === undefined ? '—' : `${averageLoss.toFixed(2)}%`,
+            hint: '所选服务器与目标',
+          },
+          {
+            label: '时间范围',
+            value: rangeOptions.find(item => item.key === range)?.label || '',
+            hint: detail?.bucket_sec
+              ? `${probeBucketLabel(detail.bucket_sec)}一个数据桶`
+              : '等待详细数据',
+          },
+          {
+            label: '探测目标',
+            value: String(targets.length),
+            hint: '当前服务器配置',
+          },
+        ].map((item) => (
+          <article key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.hint}</small>
+          </article>
+        ))}
+      </div>
+
+      <article className='premium-probe-network-matrix'>
+        <header>
+          <div>
+            <Radio />
+            <h3>服务器探测详情</h3>
+          </div>
+          <div className='premium-probe-network-ranges'>
+            {rangeOptions.map((item) => (
+              <button
+                type='button'
+                key={item.key}
+                className={range === item.key ? 'is-active' : undefined}
+                onClick={() => setRange(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </header>
+        <div className='premium-probe-target-toolbar'>
+          <div>
+            {chartSeries.map((item, index) => {
+              const key = item.key || pingTargetID(item)
+              const active = effectiveVisibleTargets.includes(key)
+              return (
+                <button
+                  type='button'
+                  key={key}
+                  className={active ? 'is-active' : undefined}
+                  onClick={() => {
+                    setTarget('__custom__')
+                    setVisibleTargets((current) => {
+                      const base =
+                        selectedTarget === '__all__'
+                          ? allChartTargetKeys
+                          : current
+                      return base.includes(key)
+                        ? base.filter((item) => item !== key)
+                        : [...base, key]
+                    })
+                  }}
+                  title={active ? '点击隐藏该目标' : '点击显示该目标'}
+                >
+                  <i
+                    style={{
+                      background:
+                        probeLineColors[index % probeLineColors.length],
+                    }}
+                  />
+                  {item.label}
+                  {item.isp ? ` · ${item.isp}` : ''}
+                </button>
+              )
+            })}
+          </div>
+          <span>
+            <button
+              type='button'
+              onClick={() => {
+                setTarget('__all__')
+                setVisibleTargets(
+                  chartSeries.map((item) => item.key || pingTargetID(item))
+                )
+              }}
+            >
+              全部显示
+            </button>
+            <button
+              type='button'
+              onClick={() => {
+                setTarget('__custom__')
+                setVisibleTargets(
+                  chartSeries
+                    .filter(
+                      (item) =>
+                        item.key !== '__avg__' &&
+                        /电信|联通|移动/.test(item.label)
+                    )
+                    .map((item) => item.key || pingTargetID(item))
+                )
+              }}
+            >
+              内地
+            </button>
+            <button
+              type='button'
+              onClick={() => {
+                setTarget('__custom__')
+                setVisibleTargets(
+                  chartSeries
+                    .filter(
+                      (item) =>
+                        item.key !== '__avg__' &&
+                        !/电信|联通|移动/.test(item.label)
+                    )
+                    .map((item) => item.key || pingTargetID(item))
+                )
+              }}
+            >
+              海外
+            </button>
+            <button
+              type='button'
+              onClick={() => {
+                setTarget('__avg__')
+                setVisibleTargets(['__avg__'])
+              }}
+            >
+              仅平均
+            </button>
+          </span>
+        </div>
+        <div className='premium-probe-network-table-head'>
+          <span>服务器</span>
+          <span>当前延迟</span>
+          <span>丢包率</span>
+          <span>真实延迟趋势 / 丢包时间轴</span>
+        </div>
+        <div className='premium-probe-network-rows'>
+          {rows.length === 0 && (
+            <div className='premium-probe-network-empty'>
+              暂无可展示的服务器
+            </div>
+          )}
+          {rows.map((row) => {
+            const quality =
+              row.latency === undefined || row.loss === undefined
+                ? 'missing'
+                : row.loss >= 10 || row.latency >= 250
+                  ? 'poor'
+                  : row.loss >= 3 || row.latency >= 120
+                    ? 'medium'
+                    : 'good'
+            const flag =
+              countryFlag(serverRegionKey(row.server)) ||
+              row.server.region ||
+              ''
+            return (
+              <div className='premium-probe-network-row' key={`${row.index}`}>
+                <div className='premium-probe-network-server'>
+                  <i data-level={quality} />
+                  <span>
+                    <strong>
+                      <Twemoji>
+                        {displayServerName(
+                          row.server.name,
+                          `#${row.index + 1}`,
+                          flag
+                        )}
+                      </Twemoji>
+                    </strong>
+                    <small>
+                      <Twemoji>{localizedRegionLabel(row.server)}</Twemoji>
+                    </small>
+                  </span>
+                </div>
+                <strong data-level={quality}>
+                  {row.latency === undefined ? '—' : `${row.latency} ms`}
+                </strong>
+                <strong data-level={quality}>
+                  {row.loss === undefined ? '—' : `${row.loss.toFixed(1)}%`}
+                </strong>
+                <div className='premium-probe-network-chart'>
+                  {visibleChartSeries.length && detail?.success ? (
+                    <MultiTargetLatencyChart
+                      series={visibleChartSeries}
+                      bucketSec={detail.bucket_sec}
+                      generatedAt={detail.generated_at}
+                    />
+                  ) : (
+                    <span>点击上方目标以显示延迟折线</span>
+                  )}
+                  <div className='premium-probe-network-loss'>
+                    {row.buckets.map((bucket, index) => (
+                      <i
+                        key={index}
+                        title={
+                          bucket.loss === undefined
+                            ? '无数据'
+                            : `丢包 ${bucket.loss.toFixed(1)}%${bucket.ms === undefined ? '' : ` · ${bucket.ms.toFixed(0)} ms`}`
+                        }
+                        style={{
+                          height: `${Math.min(100, bucket.loss || 0)}%`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className='premium-probe-network-history'>
+          {detailBuckets.length === 0 ? (
+            <p>暂无详细时间序列</p>
+          ) : (
+            detailBuckets.map((bucket) => (
+              <div key={bucket.timestamp}>
+                <time>{formatAxisDateTime(bucket.timestamp)}</time>
+                <strong>{bucket.ms < 0 ? (bucket.loss < 0 ? '暂无数据' : '不可达') : `${bucket.ms} ms`}</strong>
+                <span>
+                  {bucket.loss < 0
+                    ? '无数据'
+                    : `丢包 ${bucket.loss.toFixed(1)}%`}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </article>
+    </section>
+  )
+}
+
+type PremiumTrafficDay = NonNullable<ProbeServer['daily_traffic']>[number] & {
+  missing?: boolean
+}
+
+function premiumTrafficWindow(samples: ProbeServer['daily_traffic']): PremiumTrafficDay[] {
+  const rows = (samples || [])
+    .map((sample) => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(sample.date)
+      if (!match) return null
+      const timestamp = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      const date = new Date(timestamp).toISOString().slice(0, 10)
+      if (date !== match[0]) return null
+      return { sample: { ...sample, date }, timestamp }
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null)
+    .sort((left, right) => left.timestamp - right.timestamp)
+
+  // 没有真实日流量时保持图表空白，不生成占位日期。
+  if (!rows.length) return []
+
+  const latestTimestamp = rows[rows.length - 1].timestamp
+  const earliestTimestamp = rows[0].timestamp
+  const spanDays = Math.floor((latestTimestamp - earliestTimestamp) / 86_400_000) + 1
+  const count = Math.min(14, Math.max(7, spanDays))
+  const byDate = new Map(rows.map(({ sample }) => [sample.date, sample]))
+
+  return Array.from({ length: count }, (_, index) => {
+    const timestamp = latestTimestamp - (count - index - 1) * 86_400_000
+    const date = new Date(timestamp).toISOString().slice(0, 10)
+    return byDate.get(date) ?? {
+      date,
+      uplink: 0,
+      downlink: 0,
+      total: 0,
+      missing: true,
+    }
+  })
+}
+
+function PremiumServerCard({
+  server,
+  index,
+  onOpen,
+  showHealthScore,
+}: {
+  server: ProbeServer
+  index: number
+  onOpen: () => void
+  showHealthScore: boolean
+}) {
+  const networkSpeed = useNetworkSpeed()
+  const currentSpeed = (value: number | undefined) =>
+    server.online && typeof value === 'number' && Number.isFinite(value) && value >= 0
+      ? networkSpeed(value)
+      : '—'
+  const mem = resourcePercentage(server.mem_used, server.mem_total)
+  const disk = resourcePercentage(server.disk_used, server.disk_total)
+  const trafficUsed =
+    server.traffic_used ??
+    server.traffic_used_total ??
+    server.traffic_used_up ??
+    0
+  const trafficValue = server.traffic_limit
+    ? `${formatTrafficCompact(trafficUsed)} / ${formatTrafficCompact(server.traffic_limit)}`
+    : formatTrafficCompact(trafficUsed)
+  const latency = averageLatency(server)
+  const losses = primaryPing(server.ping)
+    .map((item) => item.loss_pct)
+    .filter((value) => value >= 0)
+  const loss = losses.length
+    ? losses.reduce((total, value) => total + value, 0) / losses.length
+    : undefined
+  const code = serverRegionKey(server)
+  const flag = countryFlag(code) || server.region || ''
+  const health = serverHealth(server)
+  const dailyTraffic = premiumTrafficWindow(server.daily_traffic)
+  const maxDailyTraffic = Math.max(
+    1,
+    ...dailyTraffic.map((day) => day.total || day.uplink + day.downlink)
+  )
+  const latencyBuckets = aggregatePingBuckets(primaryPing(server.ping))
+  const latencySamples = latencyBuckets
+    .map((bucket, bucketIndex): TrendSample | undefined => {
+      if (bucket.ms === undefined) return undefined
+      const minutesAgo = (latencyBuckets.length - 1 - bucketIndex) * 5
+      return {
+        label: minutesAgo === 0 ? '当前时间桶' : `${minutesAgo} 分钟前`,
+        value: bucket.ms,
+        formatted: `${bucket.ms.toFixed(0)} ms`,
+      }
+    })
+    .filter((sample): sample is TrendSample => sample !== undefined)
+
+  return (
+    <article
+      className='premium-probe-server-card'
+      role='button'
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onOpen()
+      }}
+    >
+      <header>
+        <h3>
+          <Twemoji>
+            {displayServerName(server.name, `#${index + 1}`, flag)}
+          </Twemoji>
+        </h3>
+        {showHealthScore && (
+          <span
+            className='premium-probe-health-score'
+            data-tone={health.tone}
+            title={health.issues.join('、') || '运行状态正常'}
+          >
+            {health.score} · {health.label}
+          </span>
+        )}
+        <UnlockButton server={server} />
+        <span className='premium-probe-server-status'>
+          <i
+            className={cn(
+              'premium-probe-live-dot',
+              !server.online && 'is-offline'
+            )}
+          />
+          {server.online ? '在线' : '离线'}
+          <ChevronRight />
+        </span>
+      </header>
+      <div className='premium-probe-resource-grid'>
+        <MetricBar
+          label='CPU'
+          value={
+            server.cpu_pct === undefined ? '—' : `${server.cpu_pct.toFixed(0)}%`
+          }
+          percent={server.cpu_pct}
+        />
+        <MetricBar
+          label='内存'
+          value={mem === undefined ? '—' : `${mem.toFixed(0)}%`}
+          percent={mem}
+        />
+        <MetricBar
+          label='硬盘'
+          value={disk === undefined ? '—' : `${disk.toFixed(0)}%`}
+          percent={disk}
+        />
+      </div>
+      <div className='premium-probe-card-network'>
+        <div className='premium-probe-card-speeds' role='group' aria-label='实时上下行速度'>
+          <div title='实时上行速度' aria-label={`实时上行 ${currentSpeed(server.upload_speed)}`}>
+            <ArrowUp aria-hidden='true' />
+            <strong>{currentSpeed(server.upload_speed)}</strong>
+          </div>
+          <div title='实时下行速度' aria-label={`实时下行 ${currentSpeed(server.download_speed)}`}>
+            <ArrowDown aria-hidden='true' />
+            <strong>{currentSpeed(server.download_speed)}</strong>
+          </div>
+        </div>
+        <ConnectionCounts server={server} variant="card" />
+      </div>
+      <ConnectionHistory server={server} serverIndex={index} />
+      <div className='premium-probe-server-footer'>
+        <div className='premium-probe-card-traffic'>
+          <span>周期流量</span>
+          <strong>{trafficValue}</strong>
+          <i
+            aria-label={
+              dailyTraffic.length
+                ? `每日流量柱状图，近 ${dailyTraffic.length} 日`
+                : '每日流量柱状图，暂无数据'
+            }
+          >
+            {dailyTraffic.map((day) => {
+              const total = day.total || day.uplink + day.downlink
+              return (
+                <b
+                  key={day.date}
+                  className={day.missing ? 'is-empty' : undefined}
+                  title={
+                    day.missing
+                      ? `${day.date} · 暂无数据`
+                      : `${day.date} · ${formatTrafficCompact(total)}`
+                  }
+                  style={{
+                    height: day.missing
+                      ? 0
+                      : `${Math.max(8, (total / maxDailyTraffic) * 100)}%`,
+                  }}
+                />
+              )
+            })}
+          </i>
+          <small>近 {dailyTraffic.length} 日</small>
+        </div>
+        <div className='premium-probe-card-latency'>
+          <span>当前延迟</span>
+          <strong>{latency === undefined ? '—' : `${latency} ms`}</strong>
+          <InteractiveTrend samples={latencySamples} compact showArea={false} />
+          <small>
+            {loss === undefined ? '暂无丢包数据' : `丢包 ${loss.toFixed(2)}%`}
+          </small>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function ServerDetailDrawer({
+  server,
+  index,
+  onClose,
+  showHealthScore,
+}: {
+  server: ProbeServer
+  index: number
+  onClose: () => void
+  showHealthScore: boolean
+}) {
+  const health = serverHealth(server)
+  const mem = resourcePercentage(server.mem_used, server.mem_total)
+  const disk = resourcePercentage(server.disk_used, server.disk_total)
+  const latency = averageLatency(server)
+  // 原始上下行日流量: 周期/最近7日切换(照上游 6221dd1 + 主控 drawer)
+  const hasDailyPeriod = hasTrafficPeriod(server)
+  // 资源使用率历史（移植上游 4cf4ae7 的需求，复用本地 SystemTrendChart，按指标切换）
+  const [resourceMetric, setResourceMetric] = useState<'cpu' | 'mem' | 'disk'>('cpu')
+  const [trafficRange, setTrafficRange] = useState<TrafficRange>(() =>
+    hasDailyPeriod ? 'period' : 'recent7',
+  )
+  // 总流量/上行/下行 行切换(照二级详情页 traffic-line-toggle)
+  const [trafficLines, setTrafficLines] = useState<Set<'total' | 'uplink' | 'downlink'>>(
+    () => new Set(['total', 'uplink', 'downlink']),
+  )
+  const toggleTrafficLine = (key: 'total' | 'uplink' | 'downlink') => {
+    setTrafficLines((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+  const traffic = dailyTrafficRows(server, trafficRange).map((item) => ({
+    ...item,
+    total: item.total || item.uplink + item.downlink,
+  }))
+  const maxTraffic = Math.max(1, ...traffic.map((item) => item.total))
+  // 流量计费口径(照主控 premium drawer: 本周期计费用量/原始周期/校准调整/对账/周期/开机网卡)
+  const accounting =
+    server.traffic_used === undefined
+      ? null
+      : {
+          used: formatTrafficCompact(server.traffic_used),
+          meter: trafficRuleLabel(server),
+          rawUp: formatTrafficCompact(server.traffic_used_up ?? 0),
+          rawDown: formatTrafficCompact(server.traffic_used_down ?? 0),
+          hasRaw:
+            server.traffic_used_up !== undefined ||
+            server.traffic_used_down !== undefined,
+          adj:
+            server.traffic_adjustment === undefined
+              ? null
+              : `${server.traffic_adjustment < 0 ? '−' : '+'}${formatTrafficCompact(Math.abs(server.traffic_adjustment))}`,
+          recon:
+            server.traffic_used_total !== undefined &&
+            server.traffic_adjustment !== undefined
+              ? `${formatTrafficCompact(server.traffic_used_total)} ${
+                  server.traffic_adjustment < 0 ? '−' : '+'
+                } ${formatTrafficCompact(Math.abs(server.traffic_adjustment))} = ${formatTrafficCompact(server.traffic_used)}`
+              : null,
+          period: trafficPeriodText(server) ?? null,
+          boot:
+            (server.boot_traffic_up !== undefined ||
+              server.boot_traffic_down !== undefined) &&
+            server.boot_traffic_scope !== 'all_time'
+              ? {
+                  up: formatTrafficCompact(server.boot_traffic_up ?? 0),
+                  down: formatTrafficCompact(server.boot_traffic_down ?? 0),
+                }
+              : null,
+        }
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [onClose])
+
+  return (
+    <div className='premium-probe-drawer-layer' onMouseDown={onClose}>
+      <aside
+        className='premium-probe-drawer'
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <Twemoji>{localizedRegionLabel(server)}</Twemoji>
+            <h2>
+              <Twemoji>{server.name || `#${index + 1}`}</Twemoji>
+            </h2>
+          </div>
+          <button type='button' onClick={onClose} aria-label='关闭详情'>
+            <X />
+          </button>
+        </header>
+        {showHealthScore && (
+          <section className='premium-probe-drawer-health'>
+            <strong data-tone={health.tone}>{health.score}</strong>
+            <div>
+              <span>综合健康度 · {health.label}</span>
+              <p>{health.issues.join('，') || '各项公开指标运行正常'}</p>
+            </div>
+          </section>
+        )}
+        <div className='premium-probe-drawer-metrics'>
+          {[
+            ['CPU', server.cpu_pct],
+            ['内存', mem],
+            ['硬盘', disk],
+          ].map(([label, value]) => (
+            <div key={String(label)}>
+              <span>{label}</span>
+              <strong>
+                {typeof value === 'number' ? `${value.toFixed(0)}%` : '—'}
+              </strong>
+            </div>
+          ))}
+          <div>
+            <span>平均延迟</span>
+            <strong>{latency === undefined ? '—' : `${latency} ms`}</strong>
+          </div>
+        </div>
+        {accounting && (
+          <section className='premium-probe-drawer-section'>
+            <h3>流量计费口径</h3>
+            <div className='premium-probe-drawer-accounting'>
+              <div>
+                <span>本周期计费用量</span>
+                <strong>{accounting.used}</strong>
+              </div>
+              {accounting.meter && <p>计费口径：{accounting.meter}</p>}
+              {accounting.hasRaw && (
+                <p>
+                  原始周期：↑ {accounting.rawUp} · ↓ {accounting.rawDown}
+                </p>
+              )}
+              {accounting.adj && <p>校准/周期边界调整：{accounting.adj}</p>}
+              {accounting.recon && <p>对账：{accounting.recon}</p>}
+              {accounting.period && <p>周期：{accounting.period}</p>}
+              {accounting.boot && (
+                <p>
+                  本次开机网卡：↑ {accounting.boot.up} · ↓ {accounting.boot.down}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+        <section className='premium-probe-drawer-section'>
+          <div className='premium-probe-traffic-heading'>
+            <h3>原始上下行日流量</h3>
+            <div role='group' aria-label='趋势范围'>
+              {hasDailyPeriod && (
+                <button
+                  type='button'
+                  className={trafficRange === 'period' ? 'is-active' : ''}
+                  onClick={() => setTrafficRange('period')}
+                >
+                  当前周期
+                </button>
+              )}
+              <button
+                type='button'
+                className={trafficRange === 'recent7' ? 'is-active' : ''}
+                onClick={() => setTrafficRange('recent7')}
+              >
+                最近 7 日
+              </button>
+              {hasMoreDailyTraffic(server) && (
+                <button
+                  type='button'
+                  className={trafficRange === 'all' ? 'is-active' : ''}
+                  title={`主控保存的全部每日流量，共 ${server.daily_traffic?.length ?? 0} 天（最多 30 天）`}
+                  onClick={() => setTrafficRange('all')}
+                >
+                  全部
+                </button>
+              )}
+            </div>
+          </div>
+          <p className='premium-probe-traffic-note'>
+            以下为原始上、下行，不应用计费方向或对账调整。
+          </p>
+          <div className='traffic-line-toggle'>
+            {(
+              [
+                { key: 'total', label: '总流量', stroke: '#3b82f6' },
+                { key: 'uplink', label: '上行流量', stroke: '#f97316' },
+                { key: 'downlink', label: '下行流量', stroke: '#22c55e' },
+              ] as const
+            ).map((line) => (
+              <button
+                type='button'
+                key={line.key}
+                className={trafficLines.has(line.key) ? 'active' : 'off'}
+                style={{ '--line-color': line.stroke } as React.CSSProperties}
+                onClick={() => toggleTrafficLine(line.key)}
+              >
+                <span className='dot' />
+                {line.label}
+              </button>
+            ))}
+          </div>
+          <div className='premium-probe-drawer-traffic'>
+            {traffic.length === 0 ? (
+              <p>暂无每日流量数据</p>
+            ) : (
+              traffic.map((item) => (
+                <div key={item.date}>
+                  <span>{item.date.slice(5)}</span>
+                  <i>
+                    {trafficLines.has('downlink') && (
+                      <b
+                        style={{
+                          width: `${(item.downlink / maxTraffic) * 100}%`,
+                        }}
+                      />
+                    )}
+                    {trafficLines.has('uplink') && (
+                      <b
+                        style={{ width: `${(item.uplink / maxTraffic) * 100}%` }}
+                      />
+                    )}
+                  </i>
+                  <strong>
+                    {trafficLines.has('total')
+                      ? formatTrafficCompact(item.total)
+                      : item.uplink !== undefined && item.downlink !== undefined && trafficLines.size === 2
+                        ? `${formatTrafficCompact(trafficLines.has('uplink') ? item.uplink : item.downlink)}`
+                        : trafficLines.has('uplink') || trafficLines.has('downlink')
+                          ? `${formatTrafficCompact(trafficLines.has('uplink') ? item.uplink : item.downlink)}`
+                          : '—'}
+                  </strong>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+        <section className='premium-probe-drawer-section'>
+          <h3>探测地址</h3>
+          <div className='premium-probe-drawer-pings'>
+            {(server.ping || []).length === 0 ? (
+              <p>暂无 Ping 探测数据</p>
+            ) : (
+              (server.ping || []).map((item) => (
+                <div key={pingTargetID(item)}>
+                  <span>
+                    {item.label}
+                    {item.isp ? ` · ${item.isp}` : ''}
+                  </span>
+                  <strong>
+                    {item.current_ms < 0 ? '不可达' : `${item.current_ms} ms`}
+                  </strong>
+                  <small>丢包 {item.loss_pct.toFixed(1)}%</small>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+        <section className='premium-probe-drawer-section'>
+          <h3>三网回程</h3>
+          <div className='premium-probe-drawer-routes'>
+            {(server.return_routes || []).length === 0 ? (
+              <p>暂无回程数据</p>
+            ) : (
+              (server.return_routes || []).map((item, routeIndex) => (
+                <span key={`${item.carrier}-${routeIndex}`}>
+                  <b>{displayReturnRoute(item.route_type)}</b>
+                  <small>
+                    {
+                      { telecom: '电信', unicom: '联通', mobile: '移动' }[
+                        item.carrier
+                      ]
+                    }
+                  </small>
+                </span>
+              ))
+            )}
+          </div>
+        </section>
+        <section className='premium-probe-drawer-section'>
+          <UnlockDetails key={index} unlocks={server.unlocks} />
+        </section>
+        {(server.cpu_pct !== undefined || server.mem_total !== undefined || server.disk_total !== undefined) && (
+          <section className='premium-probe-drawer-section probe-history-embed'>
+            <div className='premium-probe-traffic-heading'>
+              <h3>资源使用率</h3>
+              <div role='group' aria-label='资源指标'>
+                {([['cpu', 'CPU'], ['mem', '内存'], ['disk', '硬盘']] as const).map(([key, label]) => (
+                  <button key={key} type='button' className={resourceMetric === key ? 'is-active' : ''} onClick={() => setResourceMetric(key)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <SystemTrendChart key={resourceMetric} serverIndex={index} metric={resourceMetric} fixedAxis={false} />
+          </section>
+        )}
+        <section className='premium-probe-drawer-section'>
+          <h3>网络连接</h3>
+          <ConnectionCounts server={server} />
+        </section>
+        <section className='premium-probe-drawer-section premium-probe-drawer-info'>
+          <h3>系统与续费</h3>
+          <div>
+            <span>系统</span>
+            <strong>
+              {[server.os, server.arch, server.kernel]
+                .filter(Boolean)
+                .join(' · ') || '—'}
+            </strong>
+          </div>
+          <div>
+            <span>处理器</span>
+            <strong>
+              {server.cpu_model || '—'}
+              {server.cpu_cores ? ` · ${server.cpu_cores} 核` : ''}
+            </strong>
+          </div>
+          <div>
+            <span>到期时间</span>
+            <strong>{isPermanent(server) ? '永久' : server.expires_at || '—'}</strong>
+          </div>
+          <div>
+            <span>续费价格</span>
+            <strong>
+              {server.renewal_price_cny !== undefined
+                ? `¥${server.renewal_price_cny.toFixed(2)} / ${CYCLE_LABELS[server.renewal_cycle || 'month']}`
+                : server.renewal_price !== undefined ? `${server.renewal_currency || 'CNY'} ${server.renewal_price} / ${CYCLE_LABELS[server.renewal_cycle || 'month']}` : '—'}
+            </strong>
+          </div>
+        </section>
+      </aside>
+    </div>
+  )
+}
+
+export function PremiumProbePage({
+  data,
+  isLoading,
+  isError,
+  onThemeChange,
+}: PremiumProbePageProps) {
+  const networkSpeed = useNetworkSpeed()
+  const servers = useMemo(() => data?.servers || [], [data?.servers])
+  const regions = useMemo(() => buildRegions(servers), [servers])
+  const totalDownload = servers.reduce(
+    (total, server) => total + (server.download_speed || 0),
+    0
+  )
+  const totalUpload = servers.reduce(
+    (total, server) => total + (server.upload_speed || 0),
+    0
+  )
+  const [status, setStatus] = useState<StatusFilter>('all')
+  const [region, setRegion] = useState('all')
+  const [selectedServer, setSelectedServer] = useState<number>()
+  const [view, setView] = useState<PremiumProbeView>(() => {
+    if (typeof window === 'undefined') return 'card'
+    const saved = localStorage.getItem('premium-probe-view')
+    return saved === 'network' || saved === 'resource' ? saved : 'card'
+  })
+  // 水印层开关（默认开，localStorage 记忆）
+  const [showWatermark, setShowWatermark] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem('premium-probe-watermark') !== '0'
+  })
+  // 配色模式: auto(北京时间白天白金/晚上黑金) ⇄ 白金 ⇄ 黑金 三态循环
+  // 直接操作 html class(不动全局 DARK_OVERRIDE, 避免污染其他主题), localStorage 记忆
+  const [colorMode, setColorMode] = useState<'auto' | 'platinum' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'auto'
+    const saved = localStorage.getItem('premium-probe-color-mode')
+    return saved === 'platinum' || saved === 'dark' ? saved : 'auto'
+  })
+  // 用户手动点过按钮后, 主控下发不再驱动配色
+  const manualColorRef = useRef(false)
+  // 主控下发驱动: 纯 premium → auto; premiumplatinum/premiumlight → 白金。
+  // 仅当用户从未在探针上选过配色(localStorage 无 premium-probe-color-mode)时才驱动;
+  // 用户点过(含 auto)即持久记忆, 刷新后主控黑金/白金也不覆盖(2026-08-17 用户规则)
+  useEffect(() => {
+    if (manualColorRef.current) return
+    if (localStorage.getItem('premium-probe-color-mode')) return
+    const themeRaw = data?.appearance?.theme
+    if (!themeRaw) return
+    const parsed = parseThemeName(themeRaw)
+    if (parsed.platinum) {
+      if (colorMode !== 'platinum') setColorMode('platinum')
+    } else if (colorMode !== 'auto') {
+      setColorMode('auto')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.appearance?.theme])
+  const [autoPlatinum, setAutoPlatinum] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    const now = new Date()
+    const hour = (now.getUTCHours() + 8) % 24 // 北京时间(UTC+8)
+    return hour >= 6 && hour < 18
+  })
+  useEffect(() => {
+    localStorage.setItem('premium-probe-color-mode', colorMode)
+    const apply = () => {
+      if (colorMode === 'auto') {
+        const now = new Date()
+        const hour = (now.getUTCHours() + 8) % 24
+        const isDay = hour >= 6 && hour < 18
+        document.documentElement.classList.toggle('platinum', isDay)
+        setAutoPlatinum(isDay)
+      } else {
+        document.documentElement.classList.toggle('platinum', colorMode === 'platinum')
+      }
+    }
+    apply()
+    if (colorMode !== 'auto') return
+    const timer = window.setInterval(apply, 60_000) // 跨 6/18 点自动切换
+    // iOS/Safari 后台标签 interval 会被冻结: 回到前台立即重算, 不等下一个 60s tick
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') apply()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [colorMode])
+  const cycleColorMode = () => {
+    manualColorRef.current = true
+    setColorMode((prev) => (prev === 'auto' ? 'platinum' : prev === 'platinum' ? 'dark' : 'auto'))
+  }
+  // 底部许可证动画开关（默认开，localStorage 记忆）
+  const [licenseAnim, setLicenseAnim] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem('premium-probe-license-anim') !== '0'
+  })
+  // 页首许可证循环播放索引（本地 11 枚轮播; GitHub 版空数组时回退主控 badge）
+  const [headerBadgeIdx, setHeaderBadgeIdx] = useState(0)
+  useEffect(() => {
+    if (HEADER_LICENSE_BADGES.length === 0) return
+    const timer = window.setInterval(() => {
+      setHeaderBadgeIdx((index) => (index + 1) % HEADER_LICENSE_BADGES.length)
+    }, LICENSE_CYCLE_MS)
+    return () => window.clearInterval(timer)
+  }, [])
+  const sampledPayload = useRef<ProbeData | undefined>(undefined)
+  const [liveSpeedHistory, setLiveSpeedHistory] = useState<{
+    download: Omit<TrendSample, 'formatted'>[]
+    upload: Omit<TrendSample, 'formatted'>[]
+  }>({ download: [], upload: [] })
+
+  useEffect(() => {
+    if (!data || sampledPayload.current === data) return
+    let cancelled = false
+    const label = new Intl.DateTimeFormat('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date())
+
+    queueMicrotask(() => {
+      if (cancelled || sampledPayload.current === data) return
+      sampledPayload.current = data
+      setLiveSpeedHistory((history) => ({
+        download: [
+          ...history.download.slice(-59),
+          {
+            label,
+            value: totalDownload,
+          },
+        ],
+        upload: [
+          ...history.upload.slice(-59),
+          {
+            label,
+            value: totalUpload,
+          },
+        ],
+      }))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [data, totalDownload, totalUpload])
+
+  if (!data && (isLoading || isError)) {
+    return (
+      <div className='premium-probe-loading'>
+        {isError ? '探针暂时无法访问' : '正在加载服务器状态…'}
+      </div>
+    )
+  }
+
+  const online = servers.filter((server) => server.online).length
+  const offline = servers.length - online
+  const showGlobe = data?.show_globe === true && regions.length > 0
+  const showDailyTrend = data?.show_daily_trend !== false
+  const showTrafficHotspots = data?.show_traffic_hotspots !== false
+  const overviewModuleCount =
+    2 + Number(showDailyTrend) + Number(showTrafficHotspots)
+  const insightVisibility = {
+    traffic7D: data?.show_traffic_7d !== false,
+    resourceHeatmap: data?.show_resource_heatmap !== false,
+    trafficQuota: data?.show_traffic_quota !== false,
+    renewalTimeline: data?.show_renewal_timeline !== false,
+  }
+  const visibleServers = servers.filter((server) => {
+    const statusMatches =
+      status === 'all' ||
+      (status === 'online' && server.online) ||
+      (status === 'offline' && !server.online)
+    return (
+      statusMatches && (region === 'all' || serverRegionKey(server) === region)
+    )
+  })
+
+  const changeView = (next: PremiumProbeView) => {
+    setView(next)
+    localStorage.setItem('premium-probe-view', next)
+  }
+  const toggleWatermark = () => {
+    setShowWatermark((prev) => {
+      const next = !prev
+      localStorage.setItem('premium-probe-watermark', next ? '1' : '0')
+      return next
+    })
+  }
+  const toggleLicenseAnim = () => {
+    setLicenseAnim((prev) => {
+      const next = !prev
+      localStorage.setItem('premium-probe-license-anim', next ? '1' : '0')
+      return next
+    })
+  }
+  const pageTitle = data?.title?.trim() || '服务器状态'
+  const logo = data?.logo?.trim() || ''
+
+  return (
+    <div className='premium-probe-page'>
+      {showWatermark && <div className='premium-probe-watermarks' aria-hidden='true' />}
+      <header className='premium-probe-topbar'>
+        <div>
+          {logo && (
+            <img
+              src={logo}
+              alt=''
+              onError={(event) => {
+                event.currentTarget.style.display = 'none'
+              }}
+            />
+          )}
+          <h1>{pageTitle}</h1>
+          <span className='premium-probe-pro'>PRO</span>
+          {HEADER_LICENSE_BADGES.length > 0 ? (
+            <span className='premium-probe-license'>
+              <LicenseNameplate
+                key={headerBadgeIdx}
+                label={[
+                  HEADER_LICENSE_BADGES[headerBadgeIdx].name?.trim(),
+                  HEADER_LICENSE_BADGES[headerBadgeIdx].display_name?.trim(),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              />
+            </span>
+          ) : (
+            <StandaloneLicenseBadge
+              badge={data?.license_badge}
+              className='premium-probe-license'
+              animated
+            />
+          )}
+        </div>
+        <nav>
+          <span className='premium-probe-live'>实时更新</span>
+          <div className='premium-probe-theme-switch'>
+            <PasskeyLogin />
+          </div>
+          <div className='premium-probe-view-toggle'>
+            <button
+              type='button'
+              className={view === 'card' ? 'is-active' : undefined}
+              aria-label='地图视图'
+              aria-pressed={view === 'card'}
+              title='地图视图'
+              onClick={() => changeView('card')}
+            >
+              <Globe2 /> 地图视图
+            </button>
+            <button
+              type='button'
+              className={view === 'network' ? 'is-active' : undefined}
+              aria-label='网络状况'
+              aria-pressed={view === 'network'}
+              title='网络状况'
+              onClick={() => changeView('network')}
+            >
+              <Activity /> 网络状况
+            </button>
+            <button
+              type='button'
+              className={view === 'resource' ? 'is-active' : undefined}
+              aria-label='资源概况'
+              aria-pressed={view === 'resource'}
+              title='资源概况'
+              onClick={() => changeView('resource')}
+            >
+              <Gauge /> 资源概况
+            </button>
+          </div>
+          <button
+            type='button'
+            className={`premium-probe-login premium-probe-watermark-toggle${showWatermark ? ' is-on' : ''}`}
+            aria-label={showWatermark ? '隐藏水印层' : '显示水印层'}
+            aria-pressed={showWatermark}
+            title={showWatermark ? '隐藏水印层（纯黑背景）' : '显示水印层'}
+            onClick={toggleWatermark}
+          >
+            <Layers />
+          </button>
+          <button
+            type='button'
+            className={`premium-probe-login premium-probe-platinum-toggle${colorMode === 'dark' || (colorMode === 'auto' && !autoPlatinum) ? '' : ' is-on'}`}
+            aria-label={
+              colorMode === 'auto'
+                ? autoPlatinum
+                  ? '自动配色·白天白金(点击切到白金)'
+                  : '自动配色·晚上黑金(点击切到白金)'
+                : colorMode === 'platinum'
+                  ? '白金配色(点击切到黑金)'
+                  : '黑金配色(点击切到自动)'
+            }
+            aria-pressed={colorMode !== 'dark' && (colorMode !== 'auto' || autoPlatinum)}
+            title={
+              colorMode === 'auto'
+                ? `自动配色: 白天白金 / 晚上黑金(当前${autoPlatinum ? '白金' : '黑金'})`
+                : colorMode === 'platinum'
+                  ? '白金配色 → 点击切到黑金配色'
+                  : '黑金配色 → 点击切到自动配色(白天白金/晚上黑金)'
+            }
+            onClick={cycleColorMode}
+          >
+            {colorMode === 'auto' ? <SunMoon /> : colorMode === 'platinum' ? <Crown /> : <Moon />}
+          </button>
+          <PremiumThemeSelect onThemeChange={onThemeChange} />
+        </nav>
+      </header>
+
+      <main>
+        {view === 'network' ? (
+          <PremiumNetworkView
+            servers={servers}
+            forwardChains={data?.forward}
+            showForward={data?.show_forward !== false}
+          />
+        ) : view === 'resource' ? (
+          <PremiumResourceOverview
+            servers={servers}
+            visibility={insightVisibility}
+          />
+        ) : (
+          <>
+            <section
+              className={cn(
+                'premium-probe-hero',
+                !showGlobe && 'without-globe',
+                overviewModuleCount === 2 && 'is-compact-overview'
+              )}
+            >
+              <article className='premium-probe-panel premium-probe-overview'>
+                <h2>
+                  <Server /> 全球节点概览
+                </h2>
+                <div className='premium-probe-kpis'>
+                  {[
+                    {
+                      key: 'all' as const,
+                      value: servers.length,
+                      label: '台服务器',
+                      icon: Server,
+                    },
+                    {
+                      key: 'online' as const,
+                      value: online,
+                      label: '在线',
+                      icon: CheckCircle2,
+                    },
+                    {
+                      key: 'offline' as const,
+                      value: offline,
+                      label: '离线',
+                      icon: XCircle,
+                    },
+                  ].map((item) => (
+                    <button
+                      type='button'
+                      key={item.key}
+                      onClick={() => setStatus(item.key)}
+                    >
+                      <strong>{item.value}</strong>
+                      <span>
+                        <item.icon /> {item.label}
+                      </span>
+                    </button>
+                  ))}
+                  <button type='button' onClick={() => setRegion('all')}>
+                    <strong>{regions.length}</strong>
+                    <span>
+                      <Globe2 /> 个地区
+                    </span>
+                  </button>
+                </div>
+
+                <div
+                  className={cn(
+                    'premium-probe-network-grid',
+                    `has-${overviewModuleCount}-modules`
+                  )}
+                >
+                  <SpeedSnapshot
+                    label='总下行网速'
+                    value={networkSpeed(totalDownload)}
+                    samples={liveSpeedHistory.download.map((sample) => ({ ...sample, formatted: networkSpeed(sample.value) }))}
+                  />
+                  <SpeedSnapshot
+                    label='总上行网速'
+                    value={networkSpeed(totalUpload)}
+                    samples={liveSpeedHistory.upload.map((sample) => ({ ...sample, formatted: networkSpeed(sample.value) }))}
+                  />
+                  {showDailyTrend && <DailyTrafficTrend servers={servers} />}
+                  {showTrafficHotspots && <TrafficHotspots servers={servers} />}
+                </div>
+              </article>
+
+              {showGlobe && (
+                <article className='premium-probe-panel premium-probe-map'>
+                  <div className='premium-probe-panel-heading'>
+                    <h2>
+                      <Globe2 /> 地区分布
+                    </h2>
+                    <span>{regions.length} 个地区</span>
+                  </div>
+                  <div className='premium-probe-map-content'>
+                    <BlackGoldGlobe regions={regions} />
+                    <aside>
+                      <h3>地区状态</h3>
+                      {regions.map((item) => (
+                        <button
+                          type='button'
+                          key={item.code}
+                          onClick={() => setRegion(item.code)}
+                        >
+                          <Twemoji>{item.label}</Twemoji>
+                          <i
+                            className={item.online === 0 ? 'is-offline' : ''}
+                          />
+                          <strong>{item.total}</strong>
+                        </button>
+                      ))}
+                    </aside>
+                  </div>
+                </article>
+              )}
+            </section>
+
+            <section className='premium-probe-servers'>
+              <div className='premium-probe-section-heading'>
+                <h2>
+                  <Server /> 服务器摘要
+                </h2>
+                <span>实时资源与网络状态</span>
+              </div>
+              <div className='premium-probe-filters'>
+                {[
+                  ['all', `全部 ${servers.length}`],
+                  ['online', `在线 ${online}`],
+                  ['offline', `离线 ${offline}`],
+                ].map(([key, label]) => (
+                  <button
+                    type='button'
+                    key={key}
+                    className={status === key ? 'is-active' : undefined}
+                    onClick={() => setStatus(key as StatusFilter)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <label>
+                  <Globe2 />
+                  <select
+                    value={region}
+                    onChange={(event) => setRegion(event.target.value)}
+                  >
+                    <option value='all'>全部地区</option>
+                    {regions.map((item) => (
+                      <option value={item.code} key={item.code}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {visibleServers.length === 0 ? (
+                <div className='premium-probe-empty'>
+                  暂无符合筛选条件的服务器
+                </div>
+              ) : (
+                <div className='premium-probe-card-grid'>
+                  {visibleServers.map((server, index) => (
+                    <LazyCard
+                      key={`${server.name || 'server'}-${index}`}
+                      className='premium-probe-server-card'
+                      name={server.name || `服务器 ${index + 1}`}
+                      estimatedHeight={309}
+                    >
+                      <PremiumServerCard
+                        server={server}
+                        index={index}
+                        onOpen={() => setSelectedServer(index)}
+                        showHealthScore={data?.show_health_score === true}
+                      />
+                    </LazyCard>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </main>
+
+      {selectedServer !== undefined && servers[selectedServer] && (
+        <ServerDetailDrawer
+          server={servers[selectedServer]}
+          index={selectedServer}
+          onClose={() => setSelectedServer(undefined)}
+          showHealthScore={data?.show_health_score === true}
+        />
+      )}
+
+      <footer className='premium-probe-footer'>
+        <span className='premium-probe-footer-credit'>Powered by <a href='https://github.com/chnnic/jiwo-probe' target='_blank' rel='noreferrer'>Jiwo Probe</a></span>
+        <div className='premium-probe-footer-badges'>
+          {(() => {
+            // 与经典界面 Footer 同款去重: 本地 EXTRA 为主, 主控同名勋章覆盖, 其余主控勋章追加
+            const live = data?.license_badge ? (Array.isArray(data.license_badge) ? data.license_badge : [data.license_badge]) : []
+            const keyOf = (badge: { name?: string; display_name?: string }) => badge.name || badge.display_name || ''
+            const merged = EXTRA_LICENSE_BADGES.map((badge) => live.find((item) => keyOf(item) === keyOf(badge)) || badge)
+            const extras = live.filter((badge) => !EXTRA_LICENSE_BADGES.some((item) => keyOf(item) === keyOf(badge)))
+            const list = [...merged, ...extras].filter((badge, index, all) => all.findIndex((item) => keyOf(item) === keyOf(badge)) === index)
+            return list.map((badge, index) => <StandaloneLicenseBadge key={index} badge={badge} animated={licenseAnim} />)
+          })()}
+        </div>
+        <button
+          type='button'
+          className={`premium-probe-login premium-probe-license-anim-toggle${licenseAnim ? ' is-on' : ''}`}
+          aria-label={licenseAnim ? '关闭底部许可证动画' : '开启底部许可证动画'}
+          aria-pressed={licenseAnim}
+          title={licenseAnim ? '关闭底部许可证动画' : '开启底部许可证动画'}
+          onClick={toggleLicenseAnim}
+        >
+          <Sparkles />
+        </button>
+        <span className='premium-probe-footer-credit is-controller'>Powered by <a href='https://github.com/mmwx-group' target='_blank' rel='noreferrer'>MMWX Group</a></span>
+      </footer>
+    </div>
+  )
+}

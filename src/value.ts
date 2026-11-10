@@ -1,0 +1,65 @@
+import type { ProbeServer } from './types'
+import { CYCLE_DAYS, CYCLE_MONTHS, expiryTimestamp, isPermanent } from './renewal.ts'
+import { isOneTimeTraffic, trafficPeriodMonths } from './traffic-display.ts'
+export { CYCLE_DAYS } from './renewal.ts'
+const BYTES_PER_TB = 1024 ** 4
+
+export interface MonthlyTrafficCost {
+  monthlyPrice: number
+  quotaTB: number
+  perTB: number
+  currency: string
+  isCny: boolean
+}
+
+/** 套餐单价估算：配置的流量额度按流量周期（一个月、三个月、半年、一年）摊成每月额度，不使用实际已用流量。 */
+export function computeMonthlyTrafficCost(server: ProbeServer): MonthlyTrafficCost | null {
+  // There is no finite renewal period over which to amortize a buyout.
+  // 一次性流量用完不重置，额度摊不到月上。
+  if (isPermanent(server) || isOneTimeTraffic(server)) return null
+  const validPrice = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0
+  const price = validPrice(server.renewal_price_cny) ? server.renewal_price_cny : server.renewal_price
+  const quota = server.traffic_limit
+  const months = CYCLE_MONTHS[server.renewal_cycle ?? 'month']
+  if (!validPrice(price) || typeof quota !== 'number' || !Number.isFinite(quota) || quota <= 0 || !months) return null
+  const currency = validPrice(server.renewal_price_cny) ? 'CNY' : server.renewal_currency?.trim().toUpperCase() || 'CNY'
+  const monthlyPrice = price / months
+  const quotaTB = quota / BYTES_PER_TB / trafficPeriodMonths(server)
+  const perTB = monthlyPrice / quotaTB
+  if (!Number.isFinite(perTB)) return null
+  return { monthlyPrice, quotaTB, perTB, currency, isCny: currency === 'CNY' }
+}
+
+export interface RemainingValue {
+  days: number
+  cycleDays: number
+  daily: number
+  value: number
+  currency: string
+  isCny: boolean
+}
+
+export function computeRemainingValue(server: ProbeServer): RemainingValue | null {
+  const expires = expiryTimestamp(server)
+  if (expires === undefined || server.renewal_price === undefined) return null
+  const days = Math.ceil((expires - Date.now()) / 86400000)
+  if (days <= 0) return null // 已过期，无剩余价值
+  const cycleDays = CYCLE_DAYS[server.renewal_cycle || 'month']
+  const isCny = server.renewal_price_cny !== undefined
+  const price = isCny ? server.renewal_price_cny! : server.renewal_price
+  if (!cycleDays || !Number.isFinite(price) || price < 0) return null
+  const daily = price / cycleDays
+  return {
+    days,
+    cycleDays,
+    daily,
+    value: daily * days,
+    currency: isCny ? 'CNY' : server.renewal_currency || 'CNY',
+    isCny,
+  }
+}
+
+export function formatMoney(value: number, currency: string, isCny: boolean, precise = false): string {
+  if (isCny) return precise ? `¥${value.toFixed(2)}` : `¥${value.toFixed(0)}`
+  return `${currency} ${value.toFixed(2)}`
+}

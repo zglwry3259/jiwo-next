@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-backup-*/
+.wrangler/
+wrangler.local.jsonc
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.log
+*.tsbuildinfo
+.env.kv
+.wrangler-deploy.jsonc
+HANDOVER.md
+.DS_Store
+AGENTS.md
+CLAUDE.md

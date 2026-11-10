@@ -1,0 +1,267 @@
+/* Probe history v1.2 · 2026-10-04 — TCP/UDP 曲线与图例跟随主题配色；经典主题文字色读 --foreground（含 Lumina 黑金/深色）。 */
+:is(.probe-conn-history, .probe-history-dialog, .probe-forward) {
+  --ph-bg: var(--surface, #fff); --ph-text: var(--text, var(--foreground, #172033)); --ph-muted: var(--muted, #64748b);
+  --ph-line: var(--border, #e2e8f0); --ph-tcp: #169b78; --ph-udp: #4385d5;
+  /* 主题强调色：转发链流量柱、选中高亮、延迟趋势线等非状态类配色。经典主题读 --accent（Lumina 黑金/白金、玻璃），
+     没有时读各配色的 --primary；独立主题在下方映射到各自的强调色。状态色（正常/偏慢/异常）不跟随。 */
+  --ph-accent: var(--accent, var(--primary, #2563eb));
+  color: var(--ph-text); box-sizing: border-box; font-family: inherit;
+}
+:root.theme-luminaplus .probe-forward { --ph-accent: var(--lp-accent); }
+:root.theme-lite .probe-forward { --ph-accent: var(--mini-accent); }
+:root.theme-emerald .probe-forward { --ph-accent: var(--em-accent); }
+body.gm-body .probe-forward { --ph-accent: #2fd4a1; }
+body.gm-light-body .probe-forward { --ph-accent: #0d946e; }
+:root.theme-premium .probe-forward { --ph-accent: #d8b46a; }
+:root.theme-premium.platinum .probe-forward { --ph-accent: #a87c22; }
+:root:is(.dark, .gold) :is(.probe-conn-history, .probe-history-dialog, .probe-forward) { --ph-tcp: #63cdb1; --ph-udp: #82b3f1; }
+:root.theme-luminaplus :is(.probe-conn-history, .probe-history-dialog, .probe-forward) { --ph-bg: var(--lp-surface); --ph-text: var(--lp-text); --ph-muted: var(--lp-muted); --ph-line: var(--lp-border); --ph-tcp: var(--lp-green); --ph-udp: var(--lp-blue); }
+:root.theme-lite :is(.probe-conn-history, .probe-history-dialog, .probe-forward) { --ph-bg: var(--mini-surface); --ph-text: var(--mini-text); --ph-muted: var(--mini-muted); --ph-line: var(--mini-border); --ph-tcp: var(--mini-green); --ph-udp: var(--mini-blue); }
+:root.theme-nezha :is(.probe-conn-history, .probe-history-dialog, .probe-forward) { --ph-bg: var(--nz-card); --ph-text: var(--nz-fg); --ph-muted: var(--nz-muted-fg); --ph-line: var(--nz-border); --ph-accent: var(--nz-blue); }
+:root.theme-emerald :is(.probe-conn-history, .probe-history-dialog, .probe-forward) { --ph-bg: var(--em-surface-solid); --ph-text: var(--em-text); --ph-muted: var(--em-text-2); --ph-line: var(--em-border); }
+body.gm-body :is(.probe-conn-history, .probe-history-dialog, .probe-forward) { --ph-bg: #171e2a; --ph-text: #f1f5f9; --ph-muted: #b0bbcd; --ph-line: #354255; --ph-tcp: #63cdb1; --ph-udp: #82b3f1; }
+body.gm-light-body :is(.probe-conn-history, .probe-history-dialog, .probe-forward) { --ph-bg: #f8fafc; --ph-text: #172033; --ph-muted: #526078; --ph-line: #dce1e8; --ph-tcp: #169b78; --ph-udp: #4385d5; }
+:root.theme-premium :is(.probe-conn-history, .probe-history-dialog, .probe-history-embed) { --ph-bg: #151612; --ph-text: #f3ecdc; --ph-muted: #bbb09b; --ph-line: #4b4331; }
+:root.theme-premium.platinum :is(.probe-conn-history, .probe-history-dialog, .probe-history-embed) { --ph-bg: #fffdf8; --ph-text: #302919; --ph-muted: #75674e; --ph-line: #e1d7c0; }
+button.probe-conn-history { display: block; width: 100%; min-width: 0; margin: 8px 0; padding: 4px 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; text-align: left; font: inherit; cursor: pointer; }
+.probe-conn-history:focus-visible { outline: 2px solid var(--connection-tcp); outline-offset: 3px; }
+.probe-conn-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 10px; line-height: 16px; color: var(--ph-muted); }
+.probe-conn-heading > span { display: inline-flex; align-items: center; gap: 5px; }
+.probe-conn-heading i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.probe-conn-tcp-dot { background: var(--connection-tcp); }
+.probe-conn-udp-dot { background: var(--connection-udp); margin-left: 5px; }
+.probe-conn-plot { display: block; position: relative; height: 34px; margin-top: 3px; }
+.probe-conn-plot svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.probe-conn-plot path { fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.probe-conn-tcp { stroke: var(--connection-tcp); }
+.probe-conn-udp { stroke: var(--connection-udp); }
+.probe-conn-base { stroke: var(--ph-line); stroke-width: 1; }
+.probe-conn-guide { stroke: var(--ph-muted); stroke-dasharray: 3 3; stroke-width: 1; }
+.probe-conn-dot { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border: 1.5px solid var(--ph-bg); border-radius: 50%; box-sizing: content-box; pointer-events: none; }
+.probe-conn-dot.tcp { background: var(--connection-tcp); }
+.probe-conn-dot.udp { background: var(--connection-udp); }
+.probe-conn-tip { position: absolute; z-index: 5; right: 0; bottom: calc(100% + 5px); padding: 6px 9px; border: 1px solid var(--ph-line); border-radius: 7px; background: var(--ph-bg); color: var(--ph-text); box-shadow: 0 4px 12px #0002; font-size: 11px; line-height: 1.5; pointer-events: none; white-space: nowrap; }
+.probe-conn-tip small { display: block; color: var(--ph-muted); }
+.probe-conn-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ph-muted); font-size: 11px; }
+dialog.probe-history-dialog { width: min(860px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); margin: auto; padding: 22px; overflow: auto; border: 1px solid var(--ph-line); border-radius: 18px; background: var(--ph-bg); color: var(--ph-text); box-shadow: 0 20px 70px #0005; }
+.probe-history-dialog::backdrop { background: #0007; }
+.probe-history-dialog > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.probe-history-dialog h2 { margin: 0; font-size: 18px; }
+.probe-history-dialog header p { margin: 5px 0 0; font-size: 12px; color: var(--ph-muted); overflow-wrap: anywhere; }
+.probe-history-dialog header button { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 1px solid var(--ph-line); border-radius: 8px; background: transparent; color: inherit; box-shadow: none; }
+:is(.probe-history-dialog, .probe-history-embed) .ranges { display: flex; flex-wrap: wrap; gap: 5px; }
+:is(.probe-history-dialog, .probe-history-embed) :is(.ranges, .legend) button { color: var(--ph-muted); background: var(--ph-bg); border: 1px solid var(--ph-line); box-shadow: none; }
+:is(.probe-history-dialog, .probe-history-embed) .ranges button.active { color: var(--ph-text); border-color: var(--connection-tcp); background: color-mix(in srgb, var(--connection-tcp) 13%, var(--ph-bg)); }
+.probe-history-dialog .detail-chart { height: 300px; min-height: 240px; margin-top: 16px; }
+/* 嵌在 Premium 详情抽屉里的资源使用率趋势（复用弹窗里的范围按钮与图例样式） */
+.probe-history-embed { color: var(--ph-text); }
+.probe-history-embed .detail-chart { height: 220px; margin-top: 12px; }
+/* Premium 页面会把按钮的字号、内边距、边框宽度清零（.premium-probe-page button），这里按经典 .ranges / .legend 尺寸补回 */
+.probe-history-embed .ranges button { min-height: 24px; padding: 1px 6px; border-width: 1px; border-radius: 6px; font-size: 11px; }
+.probe-history-embed .ranges .zoom-btn { width: 24px; padding: 1px 0; }
+.probe-history-embed .legend button { padding: 2px 6px; border-width: 1px; border-color: transparent; font-size: 11px; }
+.probe-history-dialog .detail-connections-note { color: var(--ph-muted); font-size: 11px; line-height: 1.6; }
+:is(.probe-history-dialog, .probe-history-embed, .probe-forward) .recharts-cartesian-axis-tick-value { fill: var(--ph-muted); }
+:is(.probe-history-dialog, .probe-history-embed, .probe-forward) .recharts-default-tooltip { background: var(--ph-bg) !important; color: var(--ph-text); border: 1px solid var(--ph-line) !important; border-radius: 8px; font-size: 12px; }
+/* 转发链：状态色与主控 CSS 同一组（正常 / 偏慢 / 异常），延迟色阶沿用上游 Premium 转发页 */
+.probe-forward { --fw-ok: #2f9e6b; --fw-warn: #d18a1b; --fw-down: #d64545; margin: 20px 0; padding: 18px; border: 1px solid var(--ph-line); border-radius: var(--radius, 14px); background: var(--ph-bg); color: var(--ph-text); }
+:root:is(.dark, .gold) .probe-forward, body.gm-body:not(.gm-light-body) .probe-forward { --fw-ok: #4cc38a; --fw-warn: #f0b04a; --fw-down: #f07373; }
+/* 状态色（正常 / 偏慢 / 异常）改用各主题自带的同类色，仍保持三色可区分：
+   LuminaPlus 三套配色与 Lite 有自己的绿黄红；Lumina 黑金 / 白金以金色表示在线，偏慢改橙色拉开差别 */
+:root.theme-luminaplus .probe-forward { --fw-ok: var(--lp-green); --fw-warn: var(--lp-warn); --fw-down: var(--lp-red); }
+:root.theme-lite .probe-forward { --fw-ok: var(--mini-meter-good); --fw-warn: var(--mini-meter-warm); --fw-down: var(--mini-meter-high); }
+:root.theme-emerald .probe-forward { --fw-ok: var(--em-accent); }
+body.gm-body .probe-forward { --fw-ok: #2fd4a1; }
+body.gm-light-body .probe-forward { --fw-ok: #0d946e; }
+:root.theme-lumina.gold .probe-forward { --fw-ok: #dfb65a; --fw-warn: #e0883a; --fw-down: #e5645a; }
+:root.theme-lumina.platinum .probe-forward { --fw-ok: #a87c22; --fw-warn: #c0661f; --fw-down: #b8473f; }
+.probe-forward [data-status="ok"] { --fw: var(--fw-ok); }
+.probe-forward [data-status="warn"] { --fw: var(--fw-warn); }
+.probe-forward [data-status="down"] { --fw: var(--fw-down); }
+/* 延迟色阶与状态条、状态点同一套配色（已按主题映射）：良好 = 正常色，偏高 = 偏慢色，很高 = 异常色 */
+.probe-forward [data-tone="good"] { --fw-tone: var(--fw-ok); }
+.probe-forward [data-tone="ok"] { --fw-tone: var(--fw-warn); }
+.probe-forward [data-tone="hi"], .probe-forward [data-tone="down"] { --fw-tone: var(--fw-down); }
+.probe-forward [data-tone="idle"] { --fw-tone: var(--ph-muted); }
+.probe-forward > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; list-style: none; cursor: pointer; }
+.probe-forward > summary::-webkit-details-marker { display: none; }
+.probe-forward > summary h2 { margin: 0; font-size: 15px; }
+.probe-forward > summary > svg:last-child { margin-left: 4px; }
+.probe-forward[open] > summary > svg:last-child { transform: rotate(180deg); }
+.probe-forward-summary { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: var(--ph-muted); }
+.probe-forward-summary b { padding: 2px 7px; border-radius: 999px; font-weight: 600; color: var(--fw); background: color-mix(in srgb, var(--fw) 12%, var(--ph-bg)); }
+.probe-forward-content { display: grid; gap: 16px; margin-top: 16px; }
+.probe-forward-chains { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.probe-forward-chains button { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 10px 12px; border: 1px solid var(--ph-line); border-radius: 10px; color: var(--ph-text); background: var(--ph-bg); font: inherit; text-align: left; cursor: pointer; }
+.probe-forward-chains button:is([data-status="warn"], [data-status="down"]) { border-color: color-mix(in srgb, var(--fw) 70%, var(--ph-line)); }
+.probe-forward-chains button[aria-pressed="true"] { box-shadow: 0 0 0 2px color-mix(in srgb, var(--fw) 55%, transparent); }
+.probe-forward-chains button:focus-visible { outline: 2px solid var(--fw); outline-offset: 2px; }
+.probe-forward-chain-name, .probe-forward-detail h3 { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 600; }
+.probe-forward-chain-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.probe-forward-chain-head .probe-forward-chain-name { flex: 1 1 auto; }
+.probe-forward-chain-name > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.probe-forward-chain-head > strong { flex: none; font-size: 12px; color: var(--fw-tone); }
+:is(.probe-forward-chain-name, .probe-forward-detail h3) > i { flex: 0 0 9px; height: 9px; border-radius: 50%; background: var(--fw); }
+.probe-forward-chain-stats { overflow: hidden; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; color: var(--ph-muted); }
+.probe-forward-chain-stats > span + span::before { content: "·"; margin: 0 6px; opacity: .6; }
+/* 第三行无论有无内容都占一行高，卡片同高 */
+.probe-forward-chain-foot { display: flex; align-items: baseline; gap: 10px; min-width: 0; min-height: 16px; font-size: 11px; line-height: 16px; }
+.probe-forward-chain-speed { flex: none; white-space: nowrap; color: var(--ph-muted); }
+.probe-forward-chain-foot small { flex: 1 1 auto; min-width: 0; }
+.probe-forward-chain-speed[data-active] { color: var(--ph-accent); }
+.probe-forward-chains small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--fw); }
+.probe-forward-detail { display: grid; gap: 14px; padding-top: 4px; }
+.probe-forward-detail > header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; font-size: 12px; color: var(--ph-muted); }
+.probe-forward-detail > header h3 { margin: 0; font-size: 14px; color: var(--ph-text); }
+.probe-forward-detail > header h3 span { padding: 1px 7px; border-radius: 999px; font-size: 11px; color: var(--fw); background: color-mix(in srgb, var(--fw) 12%, var(--ph-bg)); }
+.probe-forward-detail > header strong { margin-left: 6px; color: var(--ph-text); }
+.probe-forward-interval { margin-left: 4px; font-size: 11px; color: var(--ph-muted); }
+.probe-forward-detail > header p { flex-basis: 100%; margin: 0; color: var(--fw); }
+.probe-forward-topology { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 6px; }
+/* 标题与服务器列表的间距用 gap：LuminaPlus 等主题会把 h3 外边距清零，margin 不可靠 */
+.probe-forward-group { display: grid; align-content: start; gap: 12px; flex: 1 0 190px; min-width: 0; padding: 10px 12px; border: 1.5px solid var(--ph-line); border-radius: 10px; }
+.probe-forward-group:is([data-status="warn"], [data-status="down"]) { border-color: var(--fw); }
+.probe-forward-group h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; }
+.probe-forward-group h3 small { flex: none; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: .06em; color: var(--ph-tcp); background: color-mix(in srgb, var(--ph-tcp) 10%, var(--ph-bg)); }
+.probe-forward-group h3 span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.probe-forward-group h3 em { margin-left: auto; flex: none; font-style: normal; font-size: 11px; font-weight: 500; color: var(--fw, var(--ph-muted)); }
+.probe-forward-group ul { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.probe-forward-group li { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.probe-forward-group li i { flex: 0 0 6px; height: 6px; border-radius: 50%; background: var(--fw-down); }
+.probe-forward-group li i[data-healthy="true"] { background: var(--fw-ok); }
+.probe-forward-group li span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.probe-forward-group li strong { margin-left: auto; flex-shrink: 0; font-size: 11px; color: var(--fw-tone); }
+.probe-forward-hop { display: flex; flex: 0 0 72px; flex-direction: column; justify-content: center; align-items: center; gap: 6px; padding: 0 6px; font-size: 11px; color: var(--fw-tone); }
+/* 连线：细轨道 + 沿转发方向流动的光点。光点间距按实时流量档位（data-flow 0～3），
+   流动速度按到下一组的延迟（--fw-flow-duration，由组件按延迟换算），无流量时只留轨道 */
+.probe-forward-hop i {
+  --fw-dot-gap: 18px;
+  /* 高 12px、上下各收 3px：布局仍按 6px 占位，裁切范围留出最高档光点的光晕 */
+  position: relative; overflow: hidden;
+  align-self: stretch; height: 12px; margin: -3px 0; border-radius: 6px;
+  background: linear-gradient(color-mix(in srgb, var(--fw-tone) 35%, transparent), color-mix(in srgb, var(--fw-tone) 35%, transparent)) 0 50% / 100% 2px no-repeat;
+}
+/* 光点单独一层、用 transform 平移：交给合成器，不逐帧重绘，也不受快照刷新时主线程忙碌影响；
+   改 background-position 会按整像素取整，慢速时一格一格地跳。层多出一个间距，平移一个间距后无缝衔接 */
+.probe-forward-hop i::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--fw-dot-gap)); width: calc(100% + var(--fw-dot-gap));
+  background: radial-gradient(circle, var(--fw-tone) 0 2.2px, transparent 2.6px) 0 50% / var(--fw-dot-gap) 6px repeat-x;
+  animation: fw-flow calc(var(--fw-flow-duration, 2s) * 0.6) linear infinite;
+  will-change: transform;
+}
+.probe-forward-hop[data-flow="0"] i { background: linear-gradient(color-mix(in srgb, var(--fw-tone) 55%, transparent), color-mix(in srgb, var(--fw-tone) 55%, transparent)) 0 50% / 100% 2px no-repeat; }
+.probe-forward-hop[data-flow="0"] i::before { content: none; }
+.probe-forward-hop[data-flow="1"] i { --fw-dot-gap: 22px; }
+.probe-forward-hop[data-flow="2"] i { --fw-dot-gap: 14px; }
+.probe-forward-hop[data-flow="3"] i { --fw-dot-gap: 9px; }
+.probe-forward-hop[data-flow="3"] i::before { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--fw-tone) 70%, transparent)); }
+.probe-forward-hop[data-tone="down"] i { background: repeating-linear-gradient(90deg, var(--fw-tone) 0 6px, transparent 6px 10px) 0 50% / 100% 2px no-repeat; animation: fw-blink 1.2s ease-in-out infinite; }
+.probe-forward-hop[data-tone="down"] i::before { content: none; }
+@keyframes fw-flow { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(var(--fw-dot-gap), 0, 0); } }
+@keyframes fw-flow-y { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, var(--fw-dot-gap), 0); } }
+@keyframes fw-blink { 50% { opacity: .25; } }
+/* 节点实时网速（⇅ 上下行合计，悬停看分项） */
+.probe-forward-group li { flex-wrap: wrap; row-gap: 1px; }
+.probe-forward-speed { order: 3; flex-basis: 100%; display: flex; gap: 10px; padding-left: 13px; font-style: normal; font-size: 10px; line-height: 1.3; color: var(--ph-muted); font-variant-numeric: tabular-nums; }
+.probe-forward-speed span { white-space: nowrap; }
+.probe-forward-speed[data-active] { color: var(--ph-accent); }
+/* 链路卡片状态条：每格一个探测周期 */
+.probe-forward-cells { display: flex; align-items: flex-end; height: 10px; gap: 2px; margin-top: auto; padding-top: 2px; box-sizing: content-box; }
+/* 正常格矮而浅，降级 / 中断格满高且保持饱和色：Lumina 等暖色主题三种状态色相接近，
+   72 格细条里只靠颜色，橙色降级几乎看不出来；高度差让出问题的格子直接凸出来 */
+.probe-forward-cells i { flex: 1; height: 5px; border-radius: 2px; background: color-mix(in srgb, var(--fw-ok) 42%, var(--ph-line)); }
+.probe-forward-cells i[data-tone="warn"] { height: 10px; background: var(--fw-warn); }
+.probe-forward-cells i[data-tone="down"] { height: 10px; background: var(--fw-down); }
+.probe-forward-cells i[data-tone="idle"] { background: var(--ph-line); }
+/* 24 小时状态条有 72 格，收窄间距免得窄卡片里每格只剩一条细线 */
+.probe-forward-cells[data-span="day"] { gap: 1px; }
+.probe-forward-cells[data-span="day"] i { border-radius: 1px; }
+/* 选路段：分叉处并列各条路，在用的路高亮并流动，备用路变淡 */
+.probe-forward-fork { display: grid; align-content: center; gap: 6px; flex: 1.2 0 230px; min-width: 0; margin: 0 10px; }
+.probe-forward-fork > p { margin: 0; font-size: 10px; color: var(--ph-muted); }
+.probe-forward-route { display: grid; gap: 3px; padding: 6px 8px; border: 1px dashed var(--ph-line); border-radius: 8px; opacity: .6; }
+.probe-forward-route[data-selected] { border-style: solid; border-color: color-mix(in srgb, var(--ph-accent) 55%, var(--ph-line)); background: color-mix(in srgb, var(--ph-accent) 6%, transparent); opacity: 1; }
+.probe-forward-route-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; }
+.probe-forward-route-head strong { flex: none; }
+.probe-forward-route-via { display: flex; gap: 4px; min-width: 0; overflow: hidden; }
+.probe-forward-route-via em { overflow: hidden; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; color: var(--ph-muted); background: color-mix(in srgb, var(--ph-line) 45%, transparent); }
+.probe-forward-route-head b { margin-left: auto; flex: none; font-weight: 600; color: var(--fw-tone); }
+.probe-forward-route-head small { flex: none; font-size: 10px; color: var(--fw-tone); }
+.probe-forward-route .probe-forward-hop { flex: none; padding: 0; }
+.probe-forward-route-by { overflow: hidden; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; color: var(--ph-muted); }
+.probe-forward-route[data-selected] .probe-forward-route-by { color: var(--ph-accent); }
+.probe-forward-route-tag { flex: none; font-size: 10px; color: var(--ph-accent); }
+.probe-forward-server-loss { flex: none; font-size: 10px; color: var(--fw-down); }
+.probe-forward-note { margin: 0; padding: 8px 10px; border: 1px dashed color-mix(in srgb, var(--fw-warn) 45%, var(--ph-line)); border-radius: 8px; font-size: 11px; line-height: 1.6; color: var(--ph-muted); background: color-mix(in srgb, var(--fw-warn) 6%, var(--ph-bg)); }
+@media (prefers-reduced-motion: reduce) {
+  .probe-forward-hop i::before, .probe-forward-hop[data-tone="down"] i { animation: none; }
+}
+.probe-forward-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.probe-forward-panel { min-width: 0; }
+.probe-forward-panel h4 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--ph-muted); }
+.probe-forward-trend { height: 170px; }
+.probe-forward-panel h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.probe-forward-legend { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font-weight: 500; }
+.probe-forward-legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--ph-accent); margin-left: 6px; }
+.probe-forward-legend i[data-series="loss"] { border-top: 1.5px dashed var(--fw-down); }
+.probe-forward-bars { display: grid; grid-template-columns: repeat(7, 1fr); align-items: end; gap: 6px; height: 120px; }
+.probe-forward-bars button { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; height: 100%; min-width: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.probe-forward-bars button:hover { background: color-mix(in srgb, var(--ph-accent) 8%, transparent); }
+.probe-forward-bars button:focus-visible { outline: 2px solid var(--ph-accent); outline-offset: 1px; }
+.probe-forward-bars i { width: 100%; max-width: 28px; border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--ph-accent) 55%, var(--ph-bg)); }
+/* 选中某天：其余柱子变淡，选中的加深 */
+.probe-forward-bars[data-selected] button:not([aria-pressed="true"]) i { opacity: .35; }
+.probe-forward-bars button[aria-pressed="true"] i { background: var(--ph-accent); }
+.probe-forward-bars button[aria-pressed="true"] small { color: var(--ph-text); font-weight: 600; }
+.probe-forward-hint { margin: 8px 0 0; font-size: 11px; color: var(--ph-muted); }
+.probe-forward-day > p { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; color: var(--ph-muted); }
+.probe-forward-day > p strong { color: var(--ph-text); }
+.probe-forward-day > p button { margin-left: auto; padding: 3px 8px; border: 1px solid var(--ph-line); border-radius: 6px; background: transparent; color: var(--ph-text); font: inherit; font-size: 11px; cursor: pointer; }
+.probe-forward-bars small { font-size: 10px; color: var(--ph-muted); }
+.probe-forward-top { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 12px; }
+.probe-forward-top li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.probe-forward-top span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.probe-forward-top small { flex: none; font-size: 10px; color: var(--ph-muted); }
+.probe-forward-top strong { margin-left: auto; flex: none; font-weight: 600; }
+/* 角色组标题：入口 / 中转 / 出口 + 小计，组与组之间留出间隔 */
+.probe-forward-top li.probe-forward-top-role { margin-top: 6px; padding-bottom: 3px; border-bottom: 1px solid var(--ph-line); font-size: 11px; color: var(--ph-muted); }
+.probe-forward-top li.probe-forward-top-role:first-child { margin-top: 0; }
+.probe-forward-top li.probe-forward-top-role strong { font-weight: 500; color: var(--ph-muted); }
+.probe-forward-empty { color: var(--ph-muted); font-size: 12px; padding-top: 16px; }
+@media (max-width: 600px) {
+  dialog.probe-history-dialog { padding: 16px; }
+  .probe-history-dialog .detail-chart { height: 260px; }
+  .probe-forward { padding: 14px; }
+  .probe-forward > summary { gap: 6px; }
+  .probe-forward > summary h2 { font-size: 13px; }
+  .probe-forward-summary { margin-left: 0; flex-basis: 100%; order: 3; }
+  .probe-forward-chains { grid-template-columns: 1fr; }
+  .probe-forward-topology { flex-direction: column; overflow: visible; }
+  .probe-forward-group { flex-basis: auto; }
+  /* 手机竖排：连线变成左侧竖条，与主控 CSS 手机版一致 */
+  .probe-forward-hop { flex: none; flex-direction: row; justify-content: flex-start; gap: 10px; min-height: 34px; padding: 0 0 0 16px; }
+  .probe-forward-hop i {
+    order: -1; flex: 0 0 12px; margin: 0 -3px; align-self: stretch; height: auto;
+    background: linear-gradient(color-mix(in srgb, var(--fw-tone) 35%, transparent), color-mix(in srgb, var(--fw-tone) 35%, transparent)) 50% 0 / 2px 100% no-repeat;
+  }
+  .probe-forward-hop i::before {
+    top: calc(-1 * var(--fw-dot-gap)); bottom: auto; left: 0; right: 0; width: auto; height: calc(100% + var(--fw-dot-gap));
+    background: radial-gradient(circle, var(--fw-tone) 0 2.2px, transparent 2.6px) 50% 0 / 6px var(--fw-dot-gap) repeat-y;
+    animation-name: fw-flow-y;
+  }
+  .probe-forward-hop[data-flow="0"] i { background: linear-gradient(color-mix(in srgb, var(--fw-tone) 55%, transparent), color-mix(in srgb, var(--fw-tone) 55%, transparent)) 50% 0 / 2px 100% no-repeat; }
+  .probe-forward-hop[data-tone="down"] i { background: repeating-linear-gradient(180deg, var(--fw-tone) 0 6px, transparent 6px 10px) 50% 0 / 2px 100% no-repeat; animation-name: fw-blink; }
+  /* 选路段在手机上竖排在两组之间，各条路内部的连线仍保持横向 */
+  .probe-forward-fork { margin: 8px 0 8px 16px; }
+  .probe-forward-route .probe-forward-hop { min-height: 0; padding: 0; }
+  .probe-forward-route .probe-forward-hop i {
+    order: 0; flex: 1 1 auto; height: 12px; margin: -3px 0;
+    background: linear-gradient(color-mix(in srgb, var(--fw-tone) 35%, transparent), color-mix(in srgb, var(--fw-tone) 35%, transparent)) 0 50% / 100% 2px no-repeat;
+  }
+  .probe-forward-route .probe-forward-hop i::before {
+    top: 0; bottom: 0; left: calc(-1 * var(--fw-dot-gap)); right: auto; width: calc(100% + var(--fw-dot-gap)); height: auto;
+    background: radial-gradient(circle, var(--fw-tone) 0 2.2px, transparent 2.6px) 0 50% / var(--fw-dot-gap) 6px repeat-x;
+    animation-name: fw-flow;
+  }
+  .probe-forward-route .probe-forward-hop[data-flow="0"] i { background: linear-gradient(color-mix(in srgb, var(--fw-tone) 55%, transparent), color-mix(in srgb, var(--fw-tone) 55%, transparent)) 0 50% / 100% 2px no-repeat; }
+}

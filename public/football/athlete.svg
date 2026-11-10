@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 420" fill="none">
+<defs>
+ <linearGradient id="jersey" x1="80" y1="150" x2="300" y2="320" gradientUnits="userSpaceOnUse"><stop stop-color="#182329"/><stop offset=".33" stop-color="#77838a"/><stop offset=".48" stop-color="#3e4b53"/><stop offset=".72" stop-color="#10191d"/><stop offset="1" stop-color="#39434a"/></linearGradient>
+ <linearGradient id="skin" x1="225" y1="55" x2="267" y2="145" gradientUnits="userSpaceOnUse"><stop stop-color="#b1b4ad"/><stop offset=".4" stop-color="#777f7c"/><stop offset="1" stop-color="#29312e"/></linearGradient>
+ <linearGradient id="arm" x1="88" y1="245" x2="114" y2="379" gradientUnits="userSpaceOnUse"><stop stop-color="#969c94"/><stop offset=".55" stop-color="#606d64"/><stop offset="1" stop-color="#1c2725"/></linearGradient>
+ <linearGradient id="rim" x1="90" y1="90" x2="280" y2="300" gradientUnits="userSpaceOnUse"><stop stop-color="#f6efd0"/><stop offset=".4" stop-color="#dad6bd"/><stop offset="1" stop-color="#475656"/></linearGradient>
+ <pattern id="weave" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 0h3v3H0zM3 3h3v3H3z" fill="#fff" opacity=".045"/></pattern>
+</defs>
+<!-- Original anonymous athlete illustration, created for Football Monitor. -->
+<path d="m207 101-2 39-32 20 51 39 39-29-23-32 1-31Z" fill="url(#skin)" stroke="#333c38"/>
+<path d="M224 33c-19-1-32 17-30 39l10 32 24 21 18-4 10-16 3-12 14-5-10-16-1-21-14-14Z" fill="url(#skin)"/>
+<path d="m196 79-6-17 3-24 13-12 27-6 24 6 10 11-6 21-11-13-20 1-13 16-7 17-3 19-9-10Z" fill="#101b1c"/>
+<path d="m199 43 16-12 27-4 18 8m-62 13 24-12 23 1m-44 19 17-9m38 40 8 2-11 4m-14 17 11-4" stroke="#b8c2b9" opacity=".42" stroke-width="1.4"/>
+<path d="m209 130-31 5-44 14-36 25-21 62 28 20 23-29-8 161 152 8-3-157 28 12 17-38-17-43-32-23-23-12-18 17-16 2Z" fill="url(#jersey)" stroke="url(#rim)" stroke-width="1.8"/>
+<path d="m177 136 10 18 32 11 26-14 10-14-13-6-18 15-16-10Z" fill="#142125" stroke="#a3aaa4"/>
+<path d="m135 150-10 18-9 50m181-49-22 5-5 40M128 235l12 52-9 85m128-141-9 37 14 108" stroke="#cad4d1" opacity=".4" stroke-width="2"/>
+<path d="m107 178 24-15m-28 24 21-14m159-7 17 17m-20-10 19 18m-20-9 20 19" stroke="#ddd8bc" stroke-width="3"/>
+<path d="m83 234-16 45-2 48 18 50 17-6 5-48 18-76Z" fill="url(#arm)" stroke="#abb6a8" stroke-width="1"/>
+<path d="m281 238 14 41-7 47-10 6-8-43-6-36Z" fill="url(#skin)" stroke="#66776c"/>
+<path d="m69 282 12 6 7 34-7 27m-3-53-4 26m23-69-8 24 8 32" stroke="#333f39" stroke-width="2"/>
+<path d="m139 188 14-5 4 7-14 5m13-11 14-4 4 7-15 5m13-13 15-1 1 7-14 2m19-9h14l-1 7h-13m18-7 14 3-2 7-14-3m18-3 12 5-2 7-13-5" fill="#dfe2d8" opacity=".85"/>
+<text x="158" y="289" font-family="Arial,sans-serif" font-size="89" font-weight="800" fill="#d2d6c9" stroke="#b8bead" stroke-width=".4" transform="rotate(7 210 250)">07</text>
+<path d="m142 313 91 11m-91-6 60 12m-61 8 104 11m-100 8 80 10m-91-159 26 95m85-91-2 97m-9-146 5 38" stroke="#d3dbce" opacity=".2" stroke-width="1.4"/>
+<path d="m116 157 17-7 46-15 6 9-32 9-24 16-16 29-7 21-9-2Z" fill="#fff" opacity=".11"/>
+<path d="m120 155 57-19 29 28 50 8 13 67 6 148-151-2Z" fill="url(#weave)"/>
+</svg>

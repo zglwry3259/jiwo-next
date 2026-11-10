@@ -1,0 +1,686 @@
+/* React 重写时新增的元素：按钮、设置页、立绘编辑器、零散工具类。
+   原工程这些位置用的是 shadcn-vue 的 <Button> 与 Tailwind 原子类，这里按同一套视觉（10px 圆角、
+   1px 边框、surface 底、主色实心）手写成类。统一收在 .fb-root 内，避免污染其它主题。 */
+
+/* ---------- 主题外壳 ---------- */
+/* 原工程 body 是整页滚动容器；这里把 .fb-root 改成撑满视口的纵向 flex，footer 才能沉到底。 */
+.fb-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.fb-root > main {
+  flex: 1 1 auto;
+  /* flex item 默认 min-width:auto，窄屏时会被内部不换行的工具栏撑宽，整页出现横向滚动。 */
+  min-width: 0;
+  width: 100%;
+}
+/* 运维墙自己占满一屏，不要再叠 page-container 的内边距与最小高度。 */
+.fb-root > main.is-bare {
+  min-height: 0;
+  padding: 0;
+}
+.fb-root .header-actions .fb-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+/* 覆盖 .site-footer > a 的悬停色，:hover 用同色避免设置链接跳主色。 */
+.fb-root .site-footer > span:last-of-type {
+  margin-left: auto;
+}
+
+/* ---------- 按钮 ---------- */
+.fb-root .fb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--subtle);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.fb-root .fb-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.fb-root .fb-btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.fb-root .fb-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 88%, black);
+}
+.fb-root .fb-btn-outline {
+  border-color: var(--border);
+  background: var(--surface);
+}
+.fb-root .fb-btn-outline:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  color: var(--primary-text);
+}
+.fb-root .fb-btn-outline.is-on {
+  border-color: var(--primary);
+  color: var(--primary-text);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+.fb-root .fb-btn-ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.fb-root .fb-btn-ghost:hover:not(:disabled) {
+  background: var(--subtle);
+  color: var(--foreground);
+}
+.fb-root .fb-btn-sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* ---------- 设置页 ---------- */
+.fb-root .fb-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+.fb-root .fb-settings-block {
+  padding: 20px 22px 22px;
+}
+.fb-root .fb-settings-block h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.fb-root .fb-settings-block h2 small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fb-root .fb-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px 16px;
+}
+.fb-root .fb-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+/* label 包住控件：文字在上、控件通栏，所以用纵向 flex，控件自己宽度 100%。 */
+.fb-root .fb-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.fb-root .fb-text select,
+.fb-root .fb-text input:not([type='range']):not([type='checkbox']):not([type='file']) {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
+}
+.fb-root .fb-text select:focus-visible,
+.fb-root .fb-text input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.fb-root .fb-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+.fb-root .fb-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.fb-root .fb-check input {
+  width: 15px;
+  height: 15px;
+  min-height: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.fb-root .fb-quiet {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* 节点列表：一行一台，展开后是两列字段。 */
+.fb-root .fb-node-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.fb-root .fb-node-row + .fb-node-row {
+  border-top: 1px solid var(--border);
+}
+.fb-root .fb-node-row[data-open] {
+  background: var(--subtle);
+}
+.fb-root .fb-node-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--foreground);
+}
+.fb-root .fb-node-head b {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb-root .fb-node-head small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.fb-root .fb-node-head em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+.fb-root .fb-node-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px 16px;
+  padding: 4px 14px 16px;
+}
+.fb-root .fb-carrier-row {
+  display: grid;
+  grid-template-columns: 42px minmax(90px, 1fr) minmax(110px, 1fr);
+  align-items: end;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+.fb-root .fb-carrier-name {
+  align-self: center;
+  color: var(--primary-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.fb-root .fb-preview-block .fb-preview {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 12px;
+}
+
+/* ---------- 立绘编辑器 ---------- */
+.fb-root .fb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(9 11 16 / 62%);
+  backdrop-filter: blur(3px);
+}
+.fb-root .fb-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, 100%);
+  max-height: calc(100vh - 48px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 32%);
+  overflow: hidden;
+}
+.fb-root .fb-modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.fb-root .fb-modal > header h2 {
+  font-size: 14px;
+  font-weight: 700;
+}
+.fb-root .fb-modal > header button {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+}
+.fb-root .fb-modal > header button:hover {
+  background: var(--subtle);
+  color: var(--foreground);
+}
+.fb-root .fb-modal > footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+}
+/* 中间的 <span /> 把「恢复默认」和右侧两个按钮分开。 */
+.fb-root .fb-modal > footer > span {
+  flex: 1;
+}
+.fb-root .fb-portrait-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 18px;
+  padding: 18px;
+  overflow: auto;
+}
+.fb-root .fb-portrait-stage {
+  position: relative;
+  align-self: start;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--subtle);
+  cursor: grab;
+  touch-action: none;
+  overflow: hidden;
+}
+.fb-root .fb-portrait-stage:active {
+  cursor: grabbing;
+}
+.fb-root .fb-portrait-stage svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* 取景框：upper 只框上半身，用一条半透明遮罩提示卡面实际可见范围。 */
+.fb-root .fb-portrait-guide {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 1px dashed color-mix(in srgb, var(--primary) 65%, transparent);
+  border-radius: 10px;
+}
+.fb-root .fb-portrait-guide[data-area='upper'] {
+  top: 46%;
+  border-radius: 0 0 10px 10px;
+  border-top-width: 0;
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  background: color-mix(in srgb, var(--background) 8%, transparent);
+}
+.fb-root .fb-portrait-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.fb-root .fb-portrait-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.fb-root .fb-portrait-fields output {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+.fb-root .fb-portrait-fields input[type='range'] {
+  accent-color: var(--primary);
+}
+.fb-root .fb-portrait-picks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.fb-root .fb-portrait-picks button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  min-height: 0;
+}
+.fb-root .fb-portrait-picks button.is-on {
+  border-color: var(--primary);
+  color: var(--primary-text);
+}
+.fb-root .fb-portrait-picks img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 5px;
+  background: var(--subtle);
+}
+.fb-root .fb-portrait-picks .fb-portrait-none {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 5px;
+  background: var(--subtle);
+  color: var(--muted);
+  font-size: 11px;
+}
+.fb-root .fb-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.fb-root .fb-tabs button {
+  flex: 1;
+  height: 30px;
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--background);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fb-root .fb-tabs button.selected {
+  border-color: var(--primary);
+  color: var(--primary-text);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+
+/* ---------- 零散 ---------- */
+/* 首页标题右侧的搜索框：比 header 那个小一号。 */
+.fb-root .head-search {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+}
+.fb-root .head-search:focus-within {
+  border-color: var(--primary);
+}
+.fb-root .head-search input {
+  width: 150px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--foreground);
+  font-size: 13px;
+}
+.fb-root .squad-section {
+  margin-top: 22px;
+  scroll-margin-top: 80px;
+}
+.fb-root .text-xs {
+  font-size: 11px;
+}
+.fb-root .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.fb-root .spin {
+  animation: fb-spin 1s linear infinite;
+}
+@keyframes fb-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (max-width: 720px) {
+  .fb-root .fb-portrait-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fb-root .fb-modal {
+    max-height: calc(100vh - 24px);
+  }
+  .fb-root .fb-carrier-row {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+  .fb-root .fb-carrier-row .fb-text:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- 主控数据补的新区块：解锁检测 / 连接数走势 ---------- */
+.fb-root .unlock-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+}
+.fb-root .unlock-grid li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  min-width: 0;
+}
+.fb-root .unlock-grid .unlock-name {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb-root .unlock-grid b {
+  font-size: 14px;
+  font-weight: 650;
+}
+.fb-root .unlock-grid small {
+  font-size: 11px;
+  color: var(--muted);
+}
+/* 与经典主题的解锁语义一致：ok 绿、partial 琥珀、bad 红、info 蓝、muted 灰。 */
+.fb-root .unlock-grid li[data-tone='ok'] b {
+  color: #22c55e;
+}
+.fb-root .unlock-grid li[data-tone='partial'] b {
+  color: #f59e0b;
+}
+.fb-root .unlock-grid li[data-tone='bad'] b {
+  color: #ef4444;
+}
+.fb-root .unlock-grid li[data-tone='info'] b {
+  color: #38bdf8;
+}
+.fb-root .unlock-grid li[data-tone='muted'] b {
+  color: var(--muted);
+}
+.fb-root .unlock-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.fb-root .fact-conn > dd {
+  margin: 0;
+}
+.fb-root .conn-sparks {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.fb-root .conn-spark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.fb-root .conn-spark .sparkline {
+  width: 72px;
+  height: 22px;
+}
+
+/* ---------- 转发链路 ---------- */
+.fb-root .forward-board {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+}
+.fb-root .forward-board > h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fb-root .forward-board > ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.fb-root .forward-board li {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+}
+.fb-root .forward-board li[data-tone='down'] {
+  border-color: color-mix(in srgb, #ef4444 45%, var(--border));
+}
+.fb-root .fw-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.fb-root .fw-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+.fb-root .fw-name {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb-root .fw-state {
+  font-size: 11px;
+  font-style: normal;
+  margin-left: auto;
+}
+.fb-root .fw-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 0;
+}
+.fb-root .fw-stats b {
+  color: var(--text);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.fb-root .fw-cells {
+  grid-column: 2;
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.fb-root .fw-cells i {
+  flex: 1 1 auto;
+  min-width: 2px;
+  border-radius: 1px;
+}
+.fb-root .fw-hops {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.fb-root .fw-hop {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+@media (max-width: 767px) {
+  .fb-root .forward-board li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fb-root .fw-cells {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "name": "mmwx-probe",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Standalone Cloudflare Worker probe frontend for MiaoMiaoWuX",
+  "cloudflare": {
+    "bindings": {
+      "MMWX_ORIGIN": {
+        "description": "妙妙屋 X 主控的公网 HTTPS 地址，例如 `https://panel.example.com`。"
+      },
+      "PROBE_TOKEN": {
+        "description": "在主控的 **系统设置 → 探针** 中生成的独立探针访问密钥。"
+      },
+      "PROBE_POLL_INTERVAL_SECONDS": {
+        "description": "ProbeHub 从主控采集实时快照的间隔（秒），默认 3；需要降载时可设置为 5。"
+      },
+      "PROBE_NETWORK_SPEED_UNIT": {
+        "description": "全局网速单位，默认 bits（Kbps/Mbps/Gbps）；可改为 bytes（KB/s、MB/s、GB/s）。卡片、榜单、详情页与网速概览统一生效；Ran 保持原样，累计流量不受影响。"
+      },
+      "PROBE_SHOW_CONNECTION_CHART": {
+        "description": "首页 TCP/UDP 近 1 小时折线开关，默认 true（开启），设 false 关闭。主控仍须下发 conn_history；不影响连接数数字、详情页历史或主控采集，Ran 不变。部署时自动补齐缺失变量并保留已有设置。"
+      },
+      "PROBE_PING_GROUP_COUNT": {
+        "description": "可选覆盖项，无需填写。脚本已内置三组延迟/丢包，安装即启用；需要时可设为 1、2 或 3。Premium、Ran 不受影响。"
+      },
+      "PROBE_PING_DEFAULT_TARGETS": {
+        "description": "可选覆盖项，无需填写。脚本已内置：平均延迟，内地延迟，海外延迟。自定义时按顺序填目标完整名称或 key，逗号分隔。"
+      },
+      "PROBE_PING_INTL_TARGETS": {
+        "description": "可选覆盖项，无需填写。脚本已内置 Cloudflare、Google、Telegram DC5 三个国际候补；默认目标未命中时依次补位且不重复。"
+      },
+      "PROBE_BACKGROUND_URL": {
+        "description": "可选。自定义全站背景图片的 HTTPS 地址；也可填写仓库 public 目录下以 / 开头的静态资源路径。"
+      },
+      "PROBE_BACKGROUND_OVERLAY": {
+        "description": "可选。背景遮罩强度 0–0.95，默认 0.32；数值越高，文字越清晰、原图越淡。"
+      },
+      "PROBE_BACKGROUND_POSITION": {
+        "description": "可选。背景位置：center、top、bottom、left 或 right，默认 center。"
+      },
+      "PROBE_BACKGROUND_THEMES": {
+        "description": "可选。应用背景的主题名，以英文逗号分隔；默认 pixel,flat,anime,glass,lumina,premium,ran,glassmorphism,emerald，可删除不需要的主题。"
+      }
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "deploy": "bash scripts/deploy.sh",
+    "screenshots": "npm run build && node scripts/screenshots/capture.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/shared-modules.test.mjs src/probe-delta.test.mjs src/stale-data.test.mjs src/probe-snapshot-cache.test.mjs src/probe-setup.test.mjs src/forward-model.test.mjs src/globe.test.mjs src/conn-sparkline.test.mjs src/probe-ranges.test.mjs src/value.test.mjs src/traffic-display.test.mjs src/probe-overview.test.mjs src/globe-arcs.test.mjs src/globe-labels.test.mjs src/nezha/nezha-model.test.mjs src/network-speed.test.mjs src/ping-groups.test.mjs src/theme-name.test.mjs src/theme-picker-model.test.mjs src/unlocks.test.mjs src/leaderboards.test.mjs src/mini/mini-model.test.mjs src/mini/mini-trends.test.mjs src/luminaplus/luminaplus-model.test.mjs src/luminaplus/luminaplus-appearance.test.mjs worker/ping-config.test.mjs worker/routes.test.mjs scripts/deploy-worker.test.mjs scripts/verify-deploy.test.mjs src/ran/api/mmwx-adapter.test.mjs src/ran/utils/traffic.test.mjs src/ran/i18n/zh.test.mjs"
+  },
+  "dependencies": {
+    "@simplewebauthn/browser": "^14.0.0",
+    "d3-geo": "^3.1.1",
+    "i18n-iso-countries": "^7.14.0",
+    "lottie-react": "^2.4.1",
+    "lucide-react": "^0.545.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.2.1",
+    "simple-icons": "^16.28.0",
+    "topojson-client": "^3.1.0",
+    "twemoji": "^14.0.2",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260731.1",
+    "@types/d3-geo": "^3.1.1",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/topojson-client": "^3.1.5",
+    "@types/twemoji": "^13.1.1",
+    "@vitejs/plugin-react-swc": "^4.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.9",
+    "wrangler": "^4.119.0"
+  },
+  "overrides": {
+    "sharp": "^0.35.5"
+  }
+}

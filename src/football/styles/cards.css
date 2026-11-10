@@ -1,0 +1,964 @@
+/* FC-layout player card and the live strip under it. */
+.fb-root {
+  --strip-down: #15803d;
+  --strip-up: #2563eb;
+  --strip-empty-seg: #dde0e7;
+  --strip-loading-seg: #b9bfca;
+}
+/* 深色变量必须挂在 .fb-root 上：它与浅色块是同一个元素，挂在祖先 .fb-app 上会被浅色块覆盖。 */
+.fb-app[data-fb-theme='dark'] .fb-root {
+  --strip-down: #4ade80;
+  --strip-up: #60a5fa;
+  --strip-empty-seg: #2f3440;
+  --strip-loading-seg: #4a5262;
+}
+
+.live-card {
+  min-width: 0;
+}
+.live-card-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 10px;
+  color: inherit;
+}
+.live-card-link:focus-visible {
+  outline-offset: 3px;
+}
+
+/* Card face: skin image -> portrait -> text layer, all in percentages of the 640x860 canvas. */
+.player-card {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 640 / 860;
+  container-type: inline-size;
+  isolation: isolate;
+  color: var(--ink);
+  text-shadow: var(--ink-shadow);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.2s ease;
+}
+.pc-face {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+.pc-art {
+  /* Portrait may extend past its reference frame; every edge of the art area fades out softly. */
+  --fade-y: 7%;
+  --fade-x: 6%;
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent var(--art-top),
+      #000 calc(var(--art-top) + var(--fade-y)),
+      #000 calc(var(--name-top) - var(--fade-y)),
+      transparent var(--name-top)
+    ),
+    linear-gradient(
+      to right,
+      transparent var(--inset),
+      #000 calc(var(--inset) + var(--fade-x)),
+      #000 calc(100% - var(--inset) - var(--fade-x)),
+      transparent calc(100% - var(--inset))
+    );
+  mask-composite: intersect;
+}
+.pc-portrait {
+  position: absolute;
+  top: var(--portrait-top);
+  left: var(--portrait-left);
+  width: var(--portrait-width);
+  height: var(--portrait-height);
+  /* The bleed box is right-aligned, so its left edge sits inside the art area: fade it, never clip hard. */
+  mask-image: linear-gradient(to right, transparent, #000 14%);
+}
+.pc-portrait .portrait-layer {
+  position: absolute;
+  inset: 0;
+}
+.pc-portrait .portrait-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.card-offline .pc-face,
+.card-offline .pc-art {
+  filter: grayscale(1) brightness(0.7);
+}
+.pc-text {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.pc-meta {
+  position: absolute;
+  top: var(--rating-top);
+  left: var(--inset);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.4cqw;
+  min-width: 19cqw;
+}
+.pc-rating {
+  font-size: 17cqw;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.9;
+}
+/* While the first score loads the digits spin (units faster); when it arrives each spins one more turn
+   and stops on its value, units last. Motion switches stop the animation, leaving the strip on its value. */
+.pc-roll {
+  display: inline-flex;
+}
+.pc-roll-digit {
+  display: inline-block;
+  height: 0.9em;
+  overflow: hidden;
+}
+.pc-roll-strip {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc((var(--d) + 10) * -0.9em));
+  animation: pc-roll calc(0.7s + var(--n) * 0.25s) cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+.pc-roll-strip > span {
+  height: 0.9em;
+}
+@keyframes pc-roll {
+  from {
+    transform: translateY(0);
+  }
+}
+.pc-roll[data-phase='spin'] .pc-roll-strip {
+  transform: none;
+  animation: pc-spin calc(0.9s - var(--n) * 0.3s) linear infinite;
+}
+/* One turn is ten digits; the strip repeats them, so the loop is seamless. */
+@keyframes pc-spin {
+  to {
+    transform: translateY(-9em);
+  }
+}
+.card-offline .pc-rating {
+  font-size: 11cqw;
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+.pc-position {
+  font-size: 6.4cqw;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.pc-skills {
+  /* Line “skills” sit on the card's left rim just above the name, like FC playstyle icons. */
+  position: absolute;
+  left: calc(var(--inset) - 8%);
+  bottom: calc(100% - var(--name-top) + 2%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.2cqw;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pc-skill {
+  /* FC playstyle palette: dark badge with gold rim on dark faces, metallic badge on light faces. */
+  --skill-fill: linear-gradient(160deg, #f9e9ad, #d8b153 55%, #c39a3a);
+  --skill-rim: linear-gradient(160deg, #8a6420, #4d360b);
+  --skill-ink: #2b1d05;
+  display: flex;
+  align-items: center;
+  gap: 1.1cqw;
+  max-width: 26cqw;
+  padding: 0.7cqw 1.8cqw 0.7cqw 1.3cqw;
+  overflow: hidden;
+  border: 0.4cqw solid transparent;
+  border-radius: 1.4cqw;
+  background:
+    var(--skill-fill) padding-box,
+    var(--skill-rim) border-box;
+  color: var(--skill-ink);
+  box-shadow: 0 0.5cqw 1.4cqw rgb(0 0 0 / 0.35);
+  font-size: 4cqw;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-shadow: none;
+  white-space: nowrap;
+}
+.player-card[data-badge='gold'] .pc-skill {
+  --skill-fill: linear-gradient(160deg, #2c2619, #0b0a07 70%);
+  --skill-rim: linear-gradient(160deg, #f7dc8a, #b3842c 55%, #f0cc6c);
+  --skill-ink: #f3cf6b;
+}
+.player-card[data-badge='pioneer'] .pc-skill {
+  --skill-fill: linear-gradient(160deg, #8a4fd0, #5a2a96 55%, #3a1468);
+  --skill-rim: linear-gradient(160deg, #ffffff, #d9c8f6 55%, #f4eefc);
+  --skill-ink: #ffffff;
+}
+.player-card[data-badge='green'] .pc-skill {
+  --skill-fill: linear-gradient(160deg, #157a5c, #0b4a37 55%, #06281c);
+  --skill-rim: linear-gradient(160deg, #ffffff, #b8f5dc 55%, #e6fbf2);
+  --skill-ink: #ffffff;
+}
+.player-card[data-skin='legend'] .pc-skill {
+  --skill-fill: linear-gradient(160deg, #ffffff, #f6f1e4 55%, #e7dcc2);
+  --skill-rim: linear-gradient(160deg, #f1d27a, #b8892f 55%, #e2bd5e);
+  --skill-ink: #7a5514;
+}
+.player-card[data-skin='silver'] .pc-skill {
+  --skill-fill: linear-gradient(160deg, #ffffff, #d3d8df 55%, #b3bbc6);
+  --skill-rim: linear-gradient(160deg, #6d7682, #39404a);
+  --skill-ink: #1f2630;
+}
+.player-card[data-skin='bronze'] .pc-skill {
+  --skill-fill: linear-gradient(160deg, #f6d2b0, #c98a5a 55%, #a8683d);
+  --skill-rim: linear-gradient(160deg, #6e3f1d, #3b200b);
+  --skill-ink: #2a1408;
+}
+.pc-skill::before {
+  /* Carrier hint kept small so the badge keeps the card's metallic palette. */
+  content: '';
+  flex: none;
+  width: 1.6cqw;
+  height: 1.6cqw;
+  border-radius: 50%;
+  background: var(--carrier);
+  box-shadow: 0 0 0 0.35cqw rgb(0 0 0 / 0.25);
+}
+
+.pc-chips {
+  position: absolute;
+  top: var(--rating-top);
+  right: var(--inset);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1.2cqw;
+  max-width: 36cqw;
+}
+.pc-offline-tag {
+  font-size: 3.6cqw;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 0.8cqw 1.8cqw;
+  border-radius: 1.2cqw;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  text-shadow: none;
+  white-space: nowrap;
+}
+.pc-offline-tag {
+  background: #3a3d45;
+  color: #f2f3f5;
+}
+
+.pc-name {
+  position: absolute;
+  top: var(--name-top);
+  left: var(--inset);
+  right: var(--inset);
+  margin: 0;
+  font-size: 9cqw;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc-stats {
+  position: absolute;
+  top: calc(var(--name-top) + 8.6%);
+  left: var(--inset);
+  right: var(--inset);
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding-top: 1.8cqw;
+  border-top: 0.3cqw solid color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.pc-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1cqw;
+  min-width: 0;
+}
+.pc-stat-label {
+  font-size: 3.6cqw;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+.pc-stats {
+  /* Grade colours: deep tones on light faces, bright tones on the dark faces. */
+  --grade-good: #15803d;
+  --grade-ok: #b45309;
+  --grade-bad: #b91c1c;
+}
+.player-card[data-tone='dark'] .pc-stats {
+  --grade-good: #4ade80;
+  --grade-ok: #facc15;
+  --grade-bad: #f87171;
+}
+.pc-stat-value {
+  display: flex;
+  align-items: baseline;
+  margin: 0;
+  font-size: 6.2cqw;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.pc-stat-value[data-long] {
+  font-size: 5cqw;
+}
+.pc-stat-value[data-grade='good'] {
+  color: var(--grade-good);
+}
+.pc-stat-value[data-grade='ok'] {
+  color: var(--grade-ok);
+}
+.pc-stat-value[data-grade='bad'] {
+  color: var(--grade-bad);
+}
+.pc-stat-unit {
+  margin-left: 0.2cqw;
+  font-size: 2.9cqw;
+  font-weight: 700;
+}
+.pc-crests {
+  /* Nation / league / club row of FC cards: flag, VPS provider and OS, in their own colours. */
+  /* Anchored to the stats row (not the card tip) so every face lines up the same way. */
+  position: absolute;
+  top: calc(var(--name-top) + 22.6%);
+  left: var(--inset);
+  right: var(--inset);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2.4cqw;
+}
+.pc-crest {
+  display: grid;
+  place-items: center;
+  min-width: 7.4cqw;
+  height: 7.4cqw;
+  padding: 0.9cqw;
+  overflow: hidden;
+  border-radius: 1.4cqw;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: 0 0.4cqw 1.2cqw rgb(0 0 0 / 0.25);
+}
+.pc-crest[data-kind='flag'] {
+  width: 9.9cqw;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0.9cqw;
+  box-shadow:
+    0 0 0 0.3cqw rgb(255 255 255 / 0.85),
+    0 0.4cqw 1.2cqw rgb(0 0 0 / 0.25);
+}
+.pc-crest img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* Logos keep the icon size whatever their own pixel size, so a crest never stretches. */
+.pc-crest:not([data-kind='flag']) img {
+  width: 5.6cqw;
+  height: 5.6cqw;
+}
+.pc-crest[data-kind='flag'] img {
+  object-fit: cover;
+}
+.pc-crest svg {
+  width: 5.6cqw;
+  height: 5.6cqw;
+}
+.pc-crest-text {
+  color: #1b1e26;
+  font-size: 3.2cqw;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* First cards of a page load: hidden until the face has loaded, then fade up in turn. Global motion
+   switches cancel the animation, which leaves a ready card simply visible. */
+.live-card.card-intro:not(.card-ready) {
+  opacity: 0;
+}
+.live-card.card-intro.card-ready {
+  animation: card-intro 0.4s ease-out var(--intro-delay, 0ms) both;
+}
+@keyframes card-intro {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fb-root[data-motion='true'] .live-card:hover .player-card.card-interactive {
+    transform: translateY(-3px);
+  }
+}
+
+/* Live strip: page theme tokens, readable in light and dark. */
+/* Every row reads “label ···· value” at one size; values are bold, labels muted. */
+.card-live-strip {
+  container-type: inline-size;
+  display: grid;
+  gap: 5px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.strip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.strip-speed .strip-bar-value {
+  display: flex;
+  gap: 8px;
+}
+.strip-speed b {
+  font-weight: 700;
+  margin-right: 2px;
+}
+/* Narrow cards drop the rate label so both rates keep the full width. */
+@container (max-width: 199px) {
+  .strip-speed .strip-bar-label,
+  .strip-speed .strip-bar-leader {
+    display: none;
+  }
+  .strip-speed .strip-bar-value {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+}
+.strip-down b {
+  color: var(--strip-down);
+}
+.strip-up b {
+  color: var(--strip-up);
+}
+/* Probes spread edge to edge, so the last one ends on the same right edge as the values above. */
+.strip-carriers {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.strip-carrier {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.strip-carrier-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+.strip-carrier-name span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.strip-carrier-name i {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  /* Probes not mapped to a carrier get a neutral dot. */
+  background: var(--carrier, var(--muted));
+}
+.strip-carrier-logo {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+}
+.strip-latency {
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* Wide enough strips put each probe on one line: “● 移动 416ms”. */
+@container (min-width: 270px) {
+  .strip-carrier {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .strip-carrier-name {
+    min-width: 0;
+    font-size: 12px;
+  }
+  .strip-latency {
+    flex-shrink: 0;
+  }
+}
+.strip-unit {
+  margin-left: 1px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+.strip-empty {
+  color: var(--muted);
+}
+.strip-line {
+  display: grid;
+  grid-template-columns: auto minmax(8px, 1fr) auto;
+  align-items: baseline;
+  column-gap: 6px;
+  row-gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.strip-bar-label {
+  color: var(--muted);
+}
+.strip-bar-leader {
+  align-self: center;
+  border-bottom: 1px dotted var(--border);
+}
+.strip-bar-value {
+  font-weight: 700;
+}
+/* Latency and loss sit side by side, as on the detail page, once each half has room for its bar. */
+.strip-bars {
+  display: grid;
+  gap: 5px;
+}
+@container (min-width: 190px) {
+  .strip-bars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+  }
+}
+.strip-segs {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 2px;
+}
+.strip-seg {
+  height: 6px;
+  border-radius: 1px;
+}
+/* Bar progress, 0 to 1. Motion switches stop the animations and leave these defaults: no loading
+   highlight, segments fully shown. */
+@property --strip-load {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --strip-fill {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+/* While the probes load, the empty segments light up from the left, one per tenth, and start over. */
+.strip-bar[data-state='loading'],
+.np-probes[data-state='loading'] {
+  animation: strip-load 1.2s linear infinite;
+}
+.strip-bar[data-state='loading'] .strip-seg,
+.np-probes[data-state='loading'] .np-segs i {
+  position: relative;
+}
+.strip-bar[data-state='loading'] .strip-seg::after,
+.np-probes[data-state='loading'] .np-segs i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--strip-loading-seg);
+  opacity: clamp(0, calc(var(--strip-load, 0) * 10 - var(--i)), 1);
+}
+@keyframes strip-load {
+  0% {
+    --strip-load: 0;
+  }
+  85%,
+  100% {
+    --strip-load: 1;
+  }
+}
+/* The first time the probes arrive, the coloured segments light up from the left; the split panel shares both. */
+.strip-bar[data-state='fill'],
+.np-probes[data-state='fill'] {
+  animation: strip-fill 0.7s ease-out both;
+}
+.strip-bar[data-state='fill'] .strip-seg,
+.np-probes[data-state='fill'] .np-segs i {
+  opacity: clamp(0, calc((var(--strip-fill, 1) * 13 - var(--i)) / 3), 1);
+}
+@keyframes strip-fill {
+  from {
+    --strip-fill: 0;
+  }
+  to {
+    --strip-fill: 1;
+  }
+}
+
+.skin-thumb {
+  width: 100%;
+  max-width: 110px;
+  aspect-ratio: 640 / 860;
+}
+
+/* Split view: the card face beside a data panel; the whole row is one link. */
+.card-grid[data-view='split'] {
+  --card-min: 440px;
+  --split-card: 168px;
+}
+.card-grid[data-view='split'][data-layout='compact'] {
+  --card-min: 400px;
+  --split-card: 150px;
+}
+.card-grid[data-view='split'][data-size='large'] {
+  --card-min: 480px;
+  --split-card: 190px;
+}
+.card-grid[data-view='split'] .card-skeleton {
+  aspect-ratio: auto;
+  height: 290px;
+}
+.live-card[data-view='split'] .live-card-link {
+  display: grid;
+  grid-template-columns: var(--split-card) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+/* The panel is taller than the card face; the face sits in the middle of the row. */
+.live-card[data-view='split'] .player-card {
+  align-self: center;
+}
+.node-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.np-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.np-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.np-dot[data-online='true'] {
+  background: var(--success);
+}
+.np-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-os {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+.np-os-text {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.np-flag {
+  flex-shrink: 0;
+  width: 20px;
+  height: 14px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+.np-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.np-tag {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-meters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 14px;
+}
+.np-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.np-meter-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--muted);
+}
+.np-meter-top b {
+  color: var(--foreground);
+  font-weight: 700;
+}
+.np-meter-top b[data-grade='good'],
+.np-bar i[data-grade='good'] {
+  --tone: var(--success);
+}
+.np-meter-top b[data-grade='ok'],
+.np-bar i[data-grade='ok'] {
+  --tone: var(--warning);
+}
+.np-meter-top b[data-grade='bad'],
+.np-bar i[data-grade='bad'] {
+  --tone: var(--danger);
+}
+.np-meter-top b[data-grade] {
+  color: var(--tone);
+}
+.np-bar {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-raised);
+}
+.np-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--tone);
+  transition: width 0.4s ease;
+}
+.np-detail {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-boxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-auto-flow: column;
+  gap: 6px;
+}
+.np-box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--subtle);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.np-box span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-box b {
+  margin-right: 3px;
+}
+.np-box-label {
+  color: var(--muted);
+}
+.np-today b {
+  margin: 0;
+  font-weight: 700;
+}
+.np-down {
+  color: var(--strip-down);
+}
+.np-up {
+  color: var(--strip-up);
+}
+.np-probes {
+  container: np-probes / inline-size;
+  display: grid;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.np-empty {
+  color: var(--muted);
+  font-size: 11px;
+}
+.np-probe {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 52px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 8px;
+}
+.np-probe-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.np-probe-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-probe-name img {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+.np-probe-name i {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--carrier, var(--muted));
+}
+.np-segs {
+  display: flex;
+  gap: 2px;
+  height: 9px;
+}
+.np-segs i {
+  flex: 1;
+  border-radius: 2px;
+}
+.np-probe-value {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+.np-probe-value small {
+  margin-left: 1px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+/* Phones: the head, tags and meters stay beside the card; the boxes and probes run under both. */
+@media (max-width: 639px) {
+  .card-grid[data-view='split'],
+  .card-grid[data-view='split'][data-layout='compact'],
+  .card-grid[data-view='split'][data-size='large'] {
+    --card-min: 100%;
+    --split-card: 112px;
+  }
+  .live-card[data-view='split'] .live-card-link {
+    gap: 8px 12px;
+  }
+  .live-card[data-view='split'] .player-card {
+    grid-row: 1 / span 3;
+  }
+  .live-card[data-view='split'] .node-panel {
+    display: contents;
+  }
+  .np-meters {
+    gap: 6px 10px;
+  }
+  .np-boxes,
+  .np-probes {
+    grid-column: 1 / -1;
+  }
+  .np-boxes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row;
+  }
+  .np-probe {
+    grid-template-columns: 56px minmax(0, 1fr) 48px minmax(0, 1fr) 38px;
+    gap: 6px;
+  }
+}
+/* Too narrow for one line (three cards a row on desktop, most phones): the name and both figures on top,
+   each figure over the right end of its own bar, and the two bars side by side below. */
+@container np-probes (max-width: 379px) {
+  .np-probes {
+    gap: 8px;
+  }
+  .np-probe {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px 12px;
+  }
+  .np-probe-name {
+    grid-area: 1 / 1;
+    max-width: calc(100% - 56px);
+  }
+  .np-probe-value {
+    grid-row: 1;
+    justify-self: end;
+  }
+  .np-probe-value:nth-of-type(1) {
+    grid-column: 1;
+  }
+  .np-probe-value:nth-of-type(2) {
+    grid-column: 2;
+  }
+  .np-segs {
+    grid-row: 2;
+  }
+}

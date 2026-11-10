@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "global": {
+    "default_template": "auto",
+    "layout": "comfortable",
+    "card_size": "standard",
+    "card_view": "stacked",
+    "appearance": "dark",
+    "motion": true,
+    "show_summary": true,
+    "show_traffic": true,
+    "show_billing": true,
+    "show_carriers": true,
+    "show_clock": true,
+    "exchange_rates": "USD=7.10,EUR=7.80,GBP=9.20,JPY=0.047,HKD=0.91,SGD=5.40,AUD=4.60,CAD=5.10,KRW=0.0051,TWD=0.22"
+  },
+  "nodes": {}
+}

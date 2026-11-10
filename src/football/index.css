@@ -1,0 +1,8 @@
+/* Football Monitor 主题样式一次性入口。
+   原工程是独立页面，:root / body / 裸元素选择器在 scope-css.py 里已经收进 .fb-root，
+   这里按依赖顺序引入：变量与外壳 → 卡面 → 网络页 → 运维墙。 */
+@import './styles/theme.css';
+@import './styles/cards.css';
+@import './styles/network.css';
+@import './styles/ops.css';
+@import './styles/extras.css';

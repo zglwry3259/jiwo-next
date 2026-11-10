@@ -1,0 +1,104 @@
+{
+  "gold": {
+    "left": 7,
+    "right": 93.1,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "silver": {
+    "left": 7,
+    "right": 93.1,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "bronze": {
+    "left": 7,
+    "right": 93.1,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "weekly-black": {
+    "left": 5.9,
+    "right": 94.1,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "pioneer": {
+    "left": 0.6,
+    "right": 99.4,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "legend": {
+    "left": 0.6,
+    "right": 99.5,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "galaxy": {
+    "left": 7.8,
+    "right": 92.3,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "shatter": {
+    "left": 7.8,
+    "right": 92.3,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "toty-xi": {
+    "left": 7.8,
+    "right": 92.2,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "neon": {
+    "left": 0,
+    "right": 100,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "splash": {
+    "left": 0,
+    "right": 100,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "lapis": {
+    "left": 0,
+    "right": 100,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "neon-city": {
+    "left": 0,
+    "right": 100,
+    "top": 1.3,
+    "bottom": 98.8
+  },
+  "emerald": {
+    "left": 0.2,
+    "right": 100,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "toty-orbit": {
+    "left": 0,
+    "right": 100,
+    "top": 1.2,
+    "bottom": 98.8
+  },
+  "prism": {
+    "left": 0,
+    "right": 100,
+    "top": 1.3,
+    "bottom": 98.8
+  },
+  "glitch": {
+    "left": 7.7,
+    "right": 92.3,
+    "top": 1.2,
+    "bottom": 98.8
+  }
+}

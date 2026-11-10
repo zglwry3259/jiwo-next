@@ -1,0 +1,341 @@
+/* Network quality page (/network); loaded with its view, so the home page never carries it. */
+.network-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.ns-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.ns-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+/* The site trend takes whatever the row leaves between the title and the figures. */
+.ns-bar {
+  flex: 1 1 240px;
+  min-width: 120px;
+}
+.ns-window {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ns-stats {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+.ns-stats b {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+.ns-lossy {
+  padding: 2px 10px;
+  border: 1px solid color-mix(in srgb, #fb923c 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #fb923c 14%, transparent);
+  color: #fb923c;
+  font-weight: 700;
+}
+.ns-ranges {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--subtle);
+}
+.ns-ranges button {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ns-ranges button:hover {
+  color: var(--foreground);
+}
+.ns-ranges button.selected {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.network-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+.network-offline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.network-offline input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+.network-loading {
+  padding: 18px 16px;
+}
+
+/* Trend bar: one cell per slice of the window, coloured by the worse of latency and loss. */
+.quality-bar {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+}
+.quality-bar i {
+  flex: 1 1 0;
+  min-width: 2px;
+  height: 16px;
+  border-radius: 2px;
+}
+.quality-bar[data-state='loading'] {
+  animation: strip-load 1.2s linear infinite;
+}
+.quality-bar[data-state='loading'] i {
+  position: relative;
+}
+.quality-bar[data-state='loading'] i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--strip-loading-seg);
+  opacity: clamp(0, calc(var(--strip-load, 0) * 24 - var(--i)), 1);
+}
+
+/* Table: one grid shared by the head and every row. */
+.network-table {
+  --network-cols: minmax(150px, 210px) minmax(150px, 1fr) repeat(4, 84px) 116px 64px;
+  overflow: hidden;
+}
+.network-table[data-carriers='false'] {
+  --network-cols: minmax(160px, 240px) minmax(180px, 1fr) 96px 132px 72px;
+}
+.network-head,
+.network-row {
+  display: grid;
+  grid-template-columns: var(--network-cols);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+}
+.network-head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.network-head small {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.network-head > span:first-child small {
+  display: inline;
+  margin-left: 4px;
+}
+.network-row {
+  border-top: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+.network-row:hover {
+  background: var(--surface-raised);
+}
+.network-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.network-row[data-online='false'] {
+  opacity: 0.55;
+}
+.nr-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.nr-flag {
+  flex-shrink: 0;
+  width: 22px;
+  height: 15px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+.nr-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nr-name b {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nr-name small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.nr-offline {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+.nr-trend {
+  min-width: 0;
+}
+.nr-failed {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+.nr-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.nr-cell b {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.nr-cell em {
+  margin-left: 1px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+.nr-cell small {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nr-cell small[data-alert] {
+  color: #fb923c;
+  font-weight: 700;
+}
+.nr-last b {
+  font-size: 13px;
+}
+.network-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 14px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.network-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+@media (max-width: 1199px) {
+  .network-table {
+    --network-cols: minmax(130px, 170px) minmax(110px, 1fr) repeat(4, 72px) 88px 54px;
+  }
+  .nr-last small {
+    display: none;
+  }
+}
+/* Narrow: no head; the name and trend on top, the readings below, each with its own label. */
+@media (max-width: 899px) {
+  .network-head {
+    display: none;
+  }
+  .network-row {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    align-items: start;
+    gap: 10px 12px;
+    padding: 12px 16px;
+  }
+  .network-table[data-carriers='false'] .network-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .nr-node,
+  .nr-trend {
+    grid-column: 1 / -1;
+  }
+  .nr-cell::before {
+    content: attr(data-label);
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .nr-last small {
+    display: block;
+  }
+}
+@media (max-width: 639px) {
+  .network-summary {
+    padding: 12px 14px;
+  }
+  .ns-bar {
+    flex: 1 1 140px;
+  }
+  .ns-stats {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  /* Only the range buttons scroll sideways, never the page. */
+  .ns-ranges {
+    flex-basis: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .network-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px 14px;
+  }
+  .network-legend {
+    justify-content: flex-start;
+  }
+}
