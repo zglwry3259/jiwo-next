@@ -284,6 +284,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 长名降档：卡宽固定，字号按字数退一级，让整名落在卡面内。 */
+.pc-name[data-long='lg'] {
+  font-size: 7cqw;
+  letter-spacing: -0.02em;
+}
+
+/* 18 字全角是单行上限：可用宽度 ≈ 0.88 卡宽，字号需 ≤ 4.9cqw 才落得下。 */
+.pc-name[data-long='xl'] {
+  font-size: 4.9cqw;
+  letter-spacing: -0.03em;
+}
 .pc-stats {
   position: absolute;
   top: calc(var(--name-top) + 8.6%);

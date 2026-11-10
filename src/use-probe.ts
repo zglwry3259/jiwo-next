@@ -169,12 +169,14 @@ function enrichPayload(payload: ProbePayload): ProbePayload {
 
 // 主控关闭“显示服务器名称”时，旧版接口仍可能带 name。展示层统一替换为
 // 稳定的序号名称；历史合并已在此之前按真实名称完成，不会污染内部缓存。
+// 真名同时挪到 real_name：经典主题继续显示序号，足球主题按卡面口径展示真名。
 function applyPayloadVisibility(payload: ProbePayload): ProbePayload {
   if (payload.show_name !== false || !payload.servers?.length) return payload
   return {
     ...payload,
     servers: payload.servers.map((server, index) => ({
       ...server,
+      real_name: server.name,
       name: `服务器 ${index + 1}`,
     })),
   }

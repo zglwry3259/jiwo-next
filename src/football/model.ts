@@ -1,6 +1,7 @@
 import type { ProbePayload, ProbePingSeries, ProbeServer } from '../types'
 import type { GlobalConfig, HistoryResponse, Metrics, MonitorNode, NodeConfig, ThemeConfig } from './domain/types'
 import { DEFAULT_RATES, cycleMonths, parseRates } from './domain/fleet'
+import { nodeName } from './domain/name'
 import { historyFromPing, type SeriesPayload } from './domain/history'
 import { DEFAULT_PORTRAIT } from './domain/portrait'
 import { liveNetworkScore, type NodeScore } from './domain/score'
@@ -104,7 +105,9 @@ export function toMonitorNode(server: ProbeServer, index: number): MonitorNode {
   const unlocks = server.unlocks ?? []
   return {
     id,
-    name: server.name?.trim() || `服务器 ${id}`,
+    // 名称回退链见 domain/name.ts：主控各版本把显示名放在不同键上，
+    // show_name=false 时真名由 use-probe 挪到 real_name。
+    name: nodeName(server, id),
     sort: index,
     public: true,
     online: server.online,

@@ -39,6 +39,15 @@ export interface ProbeConnHistory {
 
 export interface ProbeServer {
   name?: string
+  /**
+   * 站长在面板里填的显示名。不同主控版本落点不同（remark / alias / display_name），
+   * 展示层按 name → remark → alias → display_name 依次回退，避免只认一个键时显示成占位名。
+   */
+  remark?: string
+  alias?: string
+  display_name?: string
+  /** 主控 show_name=false 时，use-probe 把真名挪到这里，供主题按自己的口径决定是否展示。 */
+  real_name?: string
   region?: string
   region_country?: string
   region_name?: string

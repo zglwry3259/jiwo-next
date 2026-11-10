@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { lineSkills } from '../domain/carriers'
 import { flagUrl } from '../domain/flags'
 import { countryName } from '../domain/format'
+import { nameSize } from '../domain/name'
 import { cardPortraitBox } from '../domain/portrait'
 import { autoPortrait } from '../domain/portraits'
 import { osBadge, providerOf, type BrandIcon } from '../domain/providers'
@@ -57,6 +58,30 @@ export function PlayerCard({
   }, [phase])
   const rolling = config.motion && !reduced ? phase : null
   const digits = rolling === 'spin' ? ['0', '0'] : [...rating]
+
+  // 卡宽固定且名称单行 nowrap，字号必须按实际渲染宽度收敛：
+  // 半角字符宽度差异很大（W/M 与 i/l 差一倍），只按字数估算会把 "JP-Tokyo-Premium" 也截掉。
+  // 从 9cqw 往下逐档试，第一个不溢出的档位即定值；卡宽变化时重算。
+  const nameRef = useRef<HTMLHeadingElement>(null)
+  useLayoutEffect(() => {
+    const el = nameRef.current
+    if (!el) return undefined
+    const fit = () => {
+      el.style.fontSize = ''
+      for (const cqw of [9, 7.6, 6.4, 5.4, 4.6, 4]) {
+        el.style.fontSize = `${cqw}cqw`
+        if (el.scrollWidth <= el.clientWidth + 1) return
+      }
+    }
+    fit()
+    if (typeof ResizeObserver !== 'function') return undefined
+    // 观察卡片本身而不是标题：改字号会改变标题盒尺寸，观察它自己会自我触发循环。
+    const box = el.parentElement
+    if (!box) return undefined
+    const observer = new ResizeObserver(fit)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [node.name])
   const readings = statReadings(node, score)
   const stats = STAT_KEYS.map((key) => ({ key, label: STAT_LABELS[key], ...readings[key] }))
   const skills = lineSkills(settings)
@@ -153,7 +178,8 @@ export function PlayerCard({
           </ul>
         )}
         <div className="pc-chips">{!node.online && <span className="pc-offline-tag">离线</span>}</div>
-        <h2 className="pc-name" title={node.name}>
+        {/* 首帧用宽度档位兜底，挂载后由上面的测量逻辑收敛到实际放得下的字号。 */}
+        <h2 ref={nameRef} className="pc-name" data-long={nameSize(node.name)} title={node.name}>
           {node.name}
         </h2>
         <dl className="pc-stats">
