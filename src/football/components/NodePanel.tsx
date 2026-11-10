@@ -198,6 +198,7 @@ export function NodePanel({
         )}
       </div>
       {showCarriers && (
+        // 探测条数完全跟主控走：配了几条就画几行，卡片高度随之增长，不在这里截断。
         <div className="np-probes" data-state={barState}>
           {probes.length === 0 ? (
             <span className="np-empty">暂无探测任务</span>

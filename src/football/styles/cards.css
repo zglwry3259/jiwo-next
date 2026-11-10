@@ -485,8 +485,9 @@
 /* Probes spread edge to edge, so the last one ends on the same right edge as the values above. */
 .strip-carriers {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 6px;
+  gap: 6px 10px;
 }
 .strip-carrier {
   display: flex;

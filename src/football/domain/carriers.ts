@@ -81,8 +81,16 @@ export function carrierOfSeries(series: { key?: string; label?: string; isp?: st
   if (byKey) return byKey[1] as CarrierId
   return carrierFromName(series.label)
 }
-/** 卡下条显示的地区：探测名的第一个词。 */
+/** 卡下条显示的地区：探测名的第一个词，去掉运营商词（“广州电信” → “广州”），图标已经表示运营商。 */
 export const probeRegion = (name?: string) => name?.trim().split(/\s+/)[0] ?? ''
+const CARRIER_WORDS = /电信|联通|移动|telecom|unicom|mobile/gi
+/** 卡下条的名字列只有 64px：先剥运营商词，剥空了才退回运营商短名。 */
+export function probeLabel(name: string | undefined, carrier?: { short: string }): string {
+  const region = probeRegion(name)
+  if (!region) return carrier?.short ?? ''
+  if (!carrier) return region
+  return region.replace(CARRIER_WORDS, '').trim() || carrier.short
+}
 const HIDDEN_LINES = new Set(['未知', '普通线路'])
 /** 卡面“技能”：站长按运营商配置的线路名，按运营商顺序，去重。 */
 export function lineSkills(config?: NodeConfig) {
@@ -95,8 +103,10 @@ export function lineSkills(config?: NodeConfig) {
   })
 }
 /**
- * 节点前三个探测任务（按任务 id 升序）。探测跟随它被映射或命名的运营商取色；
- * 命名区分得开的按运营商短名标注（“移动”），其余按地区标注。
+ * 节点下所有探测任务。主控下发几条就显示几条：原来写死取前三条，
+ * 站长在面板里加了第二条电信、第二条联通之后，后面的探测点整条消失。
+ * 顺序按运营商归组（电信 → 联通 → 移动 → 其他），组内按任务号，
+ * 这样多条探测也不会把同一家运营商拆散。
  */
 export function shownProbes(
   history: HistoryResponse | undefined,
@@ -109,30 +119,39 @@ export function shownProbes(
     ids = Object.keys(probes)
       .map(Number)
       .sort((a, b) => a - b)
-      .slice(0, 3),
-    owned = ids.map(
-      (id) =>
-        carriers.find((c) => config?.carriers?.[c.id]?.taskId === id) ??
-        carriers.find((c) => c.id === carrierFromName(probes[String(id)])),
-    ),
-    named = ids.map((id) => carrierFromName(probes[String(id)])),
-    byCarrier = named.every(Boolean) && owned.every(Boolean) && new Set(owned.map((c) => c!.id)).size === ids.length
-  return ids.map((taskId, i) => {
-    const name = probes[String(taskId)] ?? '',
-      carrier = owned[i],
-      r = resolveTask(taskId, history, now, unavailable),
-      latency = online ? r.latency : null,
-      label = online ? statusText[r.status] : '节点离线'
-    return {
-      taskId,
-      region: (byCarrier && carrier?.short) || probeRegion(name) || `#${taskId}`,
+  if (!ids.length) return []
+  const owned = ids.map(
+    (id) =>
+      carriers.find((c) => config?.carriers?.[c.id]?.taskId === id) ??
+      carriers.find((c) => c.id === carrierFromName(probes[String(id)])),
+  )
+  // 每条探测各归一家运营商时用「电信/联通/移动」当标签；
+  // 同一运营商有多条（河北电信 TCP、河北电信 ICMP）时退回探测名首词，才分得清是哪条。
+  const byCarrier =
+    owned.every(Boolean) && new Set(owned.map((c) => c!.id)).size === ids.length
+  const rank = (c: (typeof carriers)[number] | undefined) => (c ? carriers.indexOf(c) : carriers.length)
+  return ids
+    .map((taskId, i) => {
+      const name = probes[String(taskId)] ?? '',
+        carrier = owned[i],
+        r = resolveTask(taskId, history, now, unavailable)
+      return {
+        taskId,
+        carrier,
+        name,
+        label: online ? statusText[r.status] : '节点离线',
+        region: (byCarrier && carrier?.short) || probeLabel(name, carrier) || `#${taskId}`,
+        latency: online ? r.latency : null,
+      }
+    })
+    .sort((a, b) => rank(a.carrier) - rank(b.carrier) || a.taskId - b.taskId)
+    .map(({ carrier, name, label, ...rest }) => ({
+      ...rest,
       carrier: carrier?.id,
       color: carrier?.color,
       logo: carrier?.logo,
-      latency,
       title: [carrier?.name, name, label].filter(Boolean).join(' · '),
-    }
-  })
+    }))
 }
 const SEGMENTS = 10
 const mean = (values: number[]) => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : null)

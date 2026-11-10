@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Clock, RefreshCw, Settings2, Tag } from 'lucide-react'
-import { carrierOfSeries, carriers, lossColor, lossGrade, resolveCarrier, taskLoss } from '../domain/carriers'
+import { carrierOfSeries, carriers, lossColor, lossGrade, resolveCarrier, resolveTask, taskLoss } from '../domain/carriers'
 import type { ChartSeries } from '../domain/chart'
 import {
   bytes,
@@ -218,11 +218,15 @@ export function NodeDetail({
     )
     return { ...c, ...r, probe: r.taskId ? data?.probes[String(r.taskId)] : undefined, loss: r.taskId ? taskLoss(data, r.taskId) : null }
   })
-  // 没有挂在运营商行上的丢包任务，别让它从视野里消失。
+  // 没有挂在运营商行上的探测（同一运营商配了第二条线路）单独列出。
+  // 按 probes 而不是 loss 遍历：延迟有值、丢包没下发的探测也要露出来，否则整条消失。
   const shownTasks = new Set(carrierTasks.map((c) => c.taskId))
-  const otherLoss = Object.entries(data?.loss ?? {})
+  const otherProbes = Object.entries(data?.probes ?? {})
     .filter(([id]) => !shownTasks.has(Number(id)))
-    .map(([id, loss]) => ({ id, name: data!.probes[id] || `任务 #${id}`, loss }))
+    .map(([id, name]) => {
+      const taskId = Number(id)
+      return { id, name, latency: resolveTask(taskId, pingHistory, Date.now() / 1000).latency, loss: taskLoss(data, taskId) }
+    })
   const pct = (loss: number) => `${Number(loss.toFixed(1))}%`
 
   return (
@@ -374,14 +378,20 @@ export function NodeDetail({
                   </li>
                 ))}
               </ul>
-              {otherLoss.length > 0 && (
+              {otherProbes.length > 0 && (
                 <div className="carrier-others">
                   <h3>其他探测任务</h3>
                   <ul>
-                    {otherLoss.map((o) => (
-                      <li key={o.id} className="carrier-other-loss" style={{ '--loss': lossColor(o.loss) } as Vars} title={`近 ${windowLabel(hours)}内探测失败的比例`}>
-                        <span>{o.name}</span> <b>{pct(o.loss)}</b>
-                        <em>{lossGrade(o.loss)}</em>
+                    {otherProbes.map((o) => (
+                      <li
+                        key={o.id}
+                        className="carrier-other-loss"
+                        style={{ '--loss': o.loss === null ? undefined : lossColor(o.loss) } as Vars}
+                        title={`近 ${windowLabel(hours)}内探测失败的比例`}
+                      >
+                        <span>{o.name}</span>
+                        <b>{o.latency === null ? '—' : `${Number(o.latency.toFixed(1))} ms`}</b>
+                        {o.loss === null ? <b>—</b> : <em>{`${pct(o.loss)} · ${lossGrade(o.loss)}`}</em>}
                       </li>
                     ))}
                   </ul>
