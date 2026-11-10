@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Maximize, Minimize, Server, WifiOff } from 'lucide-react'
 import { bytes, countryName } from '../domain/format'
 import { flagUrl } from '../domain/flags'
@@ -77,7 +77,17 @@ export function Ops({
   }, [nodes, pingHistory, config, seconds])
   const counts = statusCounts(nodes, alerts)
   const issues = issueList(nodes, alerts)
-  const globe = countryMarkers(nodes, alerts, places)
+  // 每秒的时钟会让整个页面重渲染，globe 若跟着重建，OpsGlobe 里「哪些国家点亮」的
+  // geoContains 全量计算就被每秒触发一次。按内容签名缓存，只有站点分布真变了才重算。
+  const markersKey = useMemo(
+    () => nodes.map((n) => `${n.id}:${n.country}:${(alerts[n.id] ?? []).map((a) => a.kind).join('+')}`).join('|'),
+    [nodes, alerts],
+  )
+  const globe = useMemo(
+    () => countryMarkers(nodes, alerts, places),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [markersKey],
+  )
   const stops = tourStops(issues, places)
   const online = nodes.filter((n) => n.online)
   const average = (() => {
@@ -141,12 +151,17 @@ export function Ops({
       ),
     }
   })()
-  const target = (() => {
-    const code = shown?.kind === 'country' ? shown.code : shownNode?.country
-    const at = code ? places[code.trim().toUpperCase()] : undefined
-    if (!code || !at || !card) return null
-    return { key: shown!.kind === 'node' ? `node-${shownNode!.id}` : `country-${code}`, code, at }
-  })()
+  // target 每次渲染都是新对象，直接传给 memo 过的地球会让它每秒重渲染一次。
+  // 只有「转到哪」变了才重建；卡片内容本身由 children 更新。
+  const targetCode = shown?.kind === 'country' ? shown.code : (shownNode?.country ?? '')
+  const targetNodeId = shownNode?.id ?? 0
+  const targetOn = Boolean(card)
+  const target = useMemo(() => {
+    const at = targetCode ? places[targetCode.trim().toUpperCase()] : undefined
+    if (!targetCode || !at || !targetOn) return null
+    return { key: targetNodeId ? `node-${targetNodeId}` : `country-${targetCode}`, code: targetCode, at }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetCode, targetNodeId, targetOn])
 
   // 最近变化：打开页面之后发生的，最新的在前；每条保留发生时的标签与数字。
   const [events, setEvents] = useState<(OpsEvent & { at: number; n: number; badge: ReturnType<typeof eventBadge> })[]>([])
@@ -234,15 +249,25 @@ export function Ops({
     else void document.documentElement.requestFullscreen().catch(() => undefined)
   }
 
-  const pick = (selection: Selection) => {
+  // 回调全部稳定引用：memo 过的地球只在 props 真变时才重渲染，内联箭头函数会让 memo 失效。
+  const pick = useCallback((selection: Selection) => {
     setTouring(false)
     setPicked(selection)
-  }
-  const visit = (id: number) => pick({ kind: 'node', id })
-  const pickCountry = (code: string) => {
-    const here = nodes.filter((n) => n.country === code)
-    pick(here.length === 1 ? { kind: 'node', id: here[0]!.id } : { kind: 'country', code })
-  }
+  }, [])
+  const visit = useCallback((id: number) => pick({ kind: 'node', id }), [pick])
+  const pickCountry = useCallback(
+    (code: string) => {
+      const here = nodes.filter((n) => n.country === code)
+      pick(here.length === 1 ? { kind: 'node', id: here[0]!.id } : { kind: 'country', code })
+    },
+    [nodes, pick],
+  )
+  // 「按下地球」要关掉当前卡片，读的是最新选中项而不是闭包里的旧值。
+  const shownRef = useRef<Selection>(null)
+  shownRef.current = shown
+  const grabCurrent = useCallback(() => pick(shownRef.current), [pick])
+  const blank = useCallback(() => pick(null), [pick])
+  const pickThisCountry = useCallback((code: string) => pick({ kind: 'country', code }), [pick])
   const toggleTour = () => {
     setTouring((v) => !v)
     setPicked(null)
@@ -382,13 +407,13 @@ export function Ops({
             </section>
           ) : (
             <section className="ops-centre" aria-label="节点分布">
-              <OpsGlobe markers={globe.markers} target={target} stale={stale} onPick={pickCountry} onGrab={() => pick(shown)} onBlank={() => pick(null)}>
+              <OpsGlobe markers={globe.markers} target={target} stale={stale} onPick={pickCountry} onGrab={grabCurrent} onBlank={blank}>
                 {card && (
                   <OpsCard
                     card={card}
-                    onClose={() => pick(null)}
+                    onClose={blank}
                     onNode={visit}
-                    onCountry={(code) => pick({ kind: 'country', code })}
+                    onCountry={pickThisCountry}
                   />
                 )}
               </OpsGlobe>

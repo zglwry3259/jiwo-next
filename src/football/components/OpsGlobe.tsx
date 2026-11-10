@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { geoContains, geoDistance, geoInterpolate, geoOrthographic, geoPath } from 'd3-geo'
 import { feature, mesh } from 'topojson-client'
 import type { Feature, FeatureCollection, MultiLineString } from 'geojson'
@@ -26,15 +26,23 @@ const landTopology = landAtlas as unknown as Topology
 const land = feature(landTopology, landTopology.objects.land as GeometryCollection) as FeatureCollection
 const coast = mesh(landTopology, landTopology.objects.land as GeometryCollection) as MultiLineString
 
-// 规则网格：每 15 度一条经线（到 75 度纬线为止），每 15 度一条纬线，逐度采样，曲线才顺。
+// 规则网格：每 15 度一条经线（到 75 度纬线为止），每 15 度一条纬线。
+// 逐度采样太密：450px 半径下 5 度折线与 1 度折线的最大偏差不到 0.4px，
+// 但点数降到 1/5，每帧的投影与描边开销同比减少。
 const STEP = 15,
   EDGE = 75,
-  span = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
+  SAMPLE = 5
+const ramp = (from: number, to: number, step: number) => {
+  const out: number[] = []
+  for (let v = from; v <= to; v += step) out.push(v)
+  if (out[out.length - 1] !== to) out.push(to)
+  return out
+}
 const graticule: MultiLineString = {
   type: 'MultiLineString',
   coordinates: [
-    ...span(0, 360 / STEP - 1).map((i) => span(-EDGE, EDGE).map((lat) => [i * STEP - 180, lat] as [number, number])),
-    ...span(-EDGE / STEP, EDGE / STEP).map((i) => span(-180, 180).map((lon) => [lon, i * STEP] as [number, number])),
+    ...ramp(0, 360 / STEP - 1, 1).map((i) => ramp(-EDGE, EDGE, SAMPLE).map((lat) => [i * STEP - 180, lat] as [number, number])),
+    ...ramp(-EDGE / STEP, EDGE / STEP, 1).map((i) => ramp(-180, 180, SAMPLE).map((lon) => [lon, i * STEP] as [number, number])),
   ],
 }
 const TILT = -18,
@@ -44,7 +52,7 @@ const TILT = -18,
 
 type Target = { key: string; code: string; at: readonly [number, number] } | null
 
-export function OpsGlobe({
+function OpsGlobeView({
   markers,
   target,
   stale,
@@ -74,7 +82,6 @@ export function OpsGlobe({
     flight: null as { from: [number, number]; to: [number, number]; start: number; zoom: number; dip: number } | null,
     zoom: 1,
     frame: 0,
-    pending: 0,
     looping: false,
     last: 0,
     drag: null as { id: number; x: number; y: number; t: number } | null,
@@ -82,6 +89,15 @@ export function OpsGlobe({
     fling: [0, 0] as [number, number],
     quietUntil: 0,
     places: new WeakMap<HTMLElement, [number, number]>(),
+    // 叠层里的标记元素缓存；pos/vis 记上一帧写过什么，没变就不碰 style。
+    marks: [] as HTMLElement[],
+    pos: new WeakMap<HTMLElement, [number, number]>(),
+    vis: new WeakMap<HTMLElement, boolean>(),
+    // 上一次真正画出去的姿态，用来跳过没有变化的帧。
+    drew: { rotation: [Number.NaN, Number.NaN] as [number, number], zoom: Number.NaN },
+    // 球体渐变按半径缓存，缩放过程中不必每帧 createRadialGradient。
+    sea: null as CanvasGradient | null,
+    seaKey: '',
     lit: [] as Feature[],
     // 每帧读 ref 会看到旧闭包，所以用 ref 保存最新的 props 值。
     markers,
@@ -92,8 +108,15 @@ export function OpsGlobe({
   s.current.target = target
   s.current.stale = stale
 
-  // 有节点的国家点亮；只在标记变化时算一次，不逐帧算。
+  // 有节点的国家点亮；只在「哪些国家、在哪」真的变了才重算。
+  // Ops 页面每秒都会重建 markers 数组（时钟），按引用比较会让 geoContains
+  // 对 177 个国家 × 每个标记每秒全跑一遍，主线程被这几万次点在多边形判断占满。
+  const litKey = useRef('')
   useEffect(() => {
+    const key = markers.map((m) => `${m.code}@${m.at[0].toFixed(2)},${m.at[1].toFixed(2)}`).join('|')
+    if (key === litKey.current) return
+    litKey.current = key
+    s.current.marks = []
     const points = markers.map((m) => m.at as [number, number])
     s.current.lit = countries.filter((c) => points.some((p) => geoContains(c, p)))
     draw()
@@ -108,7 +131,11 @@ export function OpsGlobe({
     const { width, height } = size
     if (!el || !ctx || !width || !height) return
     const st = s.current
-    const ratio = Math.min(2, window.devicePixelRatio || 1)
+    // 4K/高 DPI 屏上 canvas 会到 5000 万像素，clearRect + 大面积填充直接把 30fps 吃光。
+    // 给绘制面积设 400 万像素预算，超出就按 sqrt 降采样：细线略软，但滚动与拖动不掉帧。
+    const budget = 4_000_000
+    let ratio = Math.min(2, window.devicePixelRatio || 1)
+    if (width * height * ratio * ratio > budget) ratio = Math.max(1, Math.sqrt(budget / (width * height)))
     if (el.width !== Math.round(width * ratio)) el.width = Math.round(width * ratio)
     if (el.height !== Math.round(height * ratio)) el.height = Math.round(height * ratio)
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
@@ -119,20 +146,30 @@ export function OpsGlobe({
       cy = height / 2
     const at = (rotate: [number, number, number]) => geoOrthographic().scale(radius).translate([cx, cy]).rotate(rotate).clipAngle(90).precision(0)
     // 背面透过玻璃看到的：对跖点的视图，左右镜像。
-    const back = at([st.rotation[0] + 180, -st.rotation[1], 0]).reflectX(true)
-    const behind = geoPath(back, ctx)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'
-    ctx.lineWidth = 0.5
-    ctx.beginPath()
-    behind(coast)
-    ctx.stroke()
+    // 只在放大（看单个国家）时画：全景视角下这层 0.05 的线贴在球心附近几乎不可见，
+    // 却要每帧多做一次完整海岸线投影与裁剪。
+    if (st.zoom > 1.02) {
+      const back = at([st.rotation[0] + 180, -st.rotation[1], 0]).reflectX(true)
+      const behind = geoPath(back, ctx)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'
+      ctx.lineWidth = 0.5
+      ctx.beginPath()
+      behind(coast)
+      ctx.stroke()
+    }
 
     const projection = at([st.rotation[0], st.rotation[1], 0])
     const path = geoPath(projection, ctx)
-    const sea = ctx.createRadialGradient(cx - radius * 0.35, cy - radius * 0.4, radius * 0.05, cx, cy, radius)
-    sea.addColorStop(0, 'rgba(255, 255, 255, 0.06)')
-    sea.addColorStop(1, 'rgba(255, 255, 255, 0.012)')
-    ctx.fillStyle = sea
+    // 渐变每帧新建也是一笔开销；半径取整到像素后缓存，缩放过程中最多重建几百次。
+    const seaKey = `${Math.round(radius)}:${Math.round(cx)}:${Math.round(cy)}`
+    if (!st.sea || st.seaKey !== seaKey) {
+      const sea = ctx.createRadialGradient(cx - radius * 0.35, cy - radius * 0.4, radius * 0.05, cx, cy, radius)
+      sea.addColorStop(0, 'rgba(255, 255, 255, 0.06)')
+      sea.addColorStop(1, 'rgba(255, 255, 255, 0.012)')
+      st.sea = sea
+      st.seaKey = seaKey
+    }
+    ctx.fillStyle = st.sea!
     ctx.beginPath()
     path({ type: 'Sphere' })
     ctx.fill()
@@ -164,21 +201,38 @@ export function OpsGlobe({
     path({ type: 'Sphere' })
     ctx.stroke()
     place(projection)
+    // 记下画出去时的姿态：下一帧如果旋转与缩放都没动，就跳过整轮重绘。
+    st.drew = { rotation: [st.rotation[0], st.rotation[1]], zoom: st.zoom }
   }
 
-  /** 标记与准星是 canvas 之上的 HTML：每帧直接写样式，转到背面就藏起来。 */
+  /** 标记与准星是 canvas 之上的 HTML：每帧直接写样式，转到背面就藏起来。
+   *  元素列表缓存起来：每帧 querySelectorAll 会遍历整个叠层（含卡片 DOM），
+   *  而且无条件写 transform 会让浏览器每帧重算样式。坐标变化超过半像素才写。 */
   function place(projection: ReturnType<typeof geoOrthographic>) {
     const st = s.current
     const centre: [number, number] = [-st.rotation[0], -st.rotation[1]]
-    for (const el of layer.current?.querySelectorAll<HTMLElement>('[data-at]') ?? []) {
+    let marks = st.marks
+    if (!marks.length || marks.some((el) => !el.isConnected)) {
+      marks = st.marks = Array.from(layer.current?.querySelectorAll<HTMLElement>('[data-at]') ?? [])
+    }
+    for (const el of marks) {
       let at = st.places.get(el)
       if (!at) st.places.set(el, (at = JSON.parse(el.dataset.at!) as [number, number]))
       const point = projection(at),
         away = geoDistance(at, centre)
-      const shown = point && away < Math.PI / 2 - 0.08
-      el.style.opacity = shown ? String(Math.min(1, (Math.PI / 2 - away) * 3)) : '0'
-      el.style.visibility = shown ? '' : 'hidden'
-      if (point) el.style.transform = `translate(${point[0]}px, ${point[1]}px)`
+      const shown = Boolean(point) && away < Math.PI / 2 - 0.08
+      if (st.vis.get(el) !== shown) {
+        st.vis.set(el, shown)
+        el.style.opacity = shown ? String(Math.min(1, (Math.PI / 2 - away) * 3)) : '0'
+        el.style.visibility = shown ? '' : 'hidden'
+      }
+      if (point) {
+        const last = st.pos.get(el)
+        if (!last || Math.abs(last[0] - point[0]) > 0.4 || Math.abs(last[1] - point[1]) > 0.4) {
+          st.pos.set(el, [point[0], point[1]])
+          el.style.transform = `translate(${point[0]}px, ${point[1]}px)`
+        }
+      }
     }
   }
 
@@ -208,7 +262,14 @@ export function OpsGlobe({
     }
     // 关掉卡片后地球回到全景。
     if (!st.flight) st.zoom += (zoomGoal() - st.zoom) * (1 - Math.exp(-4 * dt))
-    draw()
+    // 姿态没变就不画：卡片打开、缩放收敛完、又没有自转时，每帧重绘纯属白烧。
+    const d = st.drew
+    const moved =
+      !Number.isFinite(d.zoom) ||
+      Math.abs(st.rotation[0] - d.rotation[0]) > 0.02 ||
+      Math.abs(st.rotation[1] - d.rotation[1]) > 0.02 ||
+      Math.abs(st.zoom - d.zoom) > 0.001
+    if (moved) draw()
   }
 
   const turned = (r: [number, number], dLon: number, dLat: number): [number, number] => [r[0] + dLon, Math.max(-85, Math.min(85, r[1] + dLat))]
@@ -236,12 +297,9 @@ export function OpsGlobe({
     st.rotation = turned(st.rotation, dLon, dLat)
     st.fling = [dLon / dt, dLat / dt]
     st.drag = { id: st.drag.id, x: event.clientX, y: event.clientY, t: now }
-    if (!st.looping && !st.pending) {
-      st.pending = requestAnimationFrame(() => {
-        st.pending = 0
-        draw()
-      })
-    }
+    // 拖动时 tick 循环本来就是 60fps 并在末尾重绘；这里再排一帧等于每帧画两次，
+    // 指针事件越密（120Hz 触控板）重复绘制越多，这正是拖动发涩的来源。
+    if (!st.looping) draw()
   }
   const release = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const st = s.current
@@ -291,7 +349,6 @@ export function OpsGlobe({
     start()
     return () => {
       cancelAnimationFrame(s.current.frame)
-      cancelAnimationFrame(s.current.pending)
       observer?.disconnect()
       document.removeEventListener('visibilitychange', onVisible)
     }
@@ -305,6 +362,8 @@ export function OpsGlobe({
   const targetKey = target ? `${target.at[0]},${target.at[1]}` : ''
   useEffect(() => {
     const st = s.current
+    // 准星卡片随 target.key 重建，缓存里的旧节点已经脱离文档。
+    st.marks = []
     const t = s.current.target
     if (!t) {
       if (still()) {
@@ -382,3 +441,9 @@ export function OpsGlobe({
     </div>
   )
 }
+
+/**
+ * 运维地球。Ops 页面每秒都因时钟重渲染一次，memo 之后没有卡片时（children 为 false）
+ * 秒针不会传进这个组件；卡片打开时 children 本身每秒要更新，这里就不再省这一层。
+ */
+export const OpsGlobe = memo(OpsGlobeView)
