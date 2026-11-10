@@ -345,7 +345,42 @@ export function Ops({
             </div>
           </section>
 
-          {!hideGlobe && (
+          {hideGlobe ? (
+            /* 主控关掉地球时中间不能留一块黑：改成节点清单，运维模式下仍然一眼看到每台状态。 */
+            <section className="ops-centre ops-roster" aria-label="节点清单">
+              <ul className="ops-roster-list">
+                {nodes.map((n) => {
+                  const overall = scores[n.id]?.overall ?? null
+                  return (
+                    <li key={n.id}>
+                      <button
+                        type="button"
+                        className="ops-roster-item"
+                        data-online={n.online || undefined}
+                        data-focus={shownNode?.id === n.id || undefined}
+                        onClick={() => visit(n.id)}
+                        title={`查看 ${n.name}`}
+                      >
+                        <span className="ori-main">
+                          <b>{n.name}</b>
+                          <small>
+                            {flagUrl(n.country) && <img className="or-flag" src={flagUrl(n.country)} alt="" />}
+                            {n.country ? countryName(n.country) : '未设置地区'}
+                          </small>
+                        </span>
+                        <span className="ori-side">
+                          <em data-tone={overall === null ? undefined : overall >= 75 ? 'ok' : overall >= 60 ? 'warn' : 'bad'}>
+                            {overall ?? '—'}
+                          </em>
+                          <small>{n.online ? '在线' : '离线'}</small>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ) : (
             <section className="ops-centre" aria-label="节点分布">
               <OpsGlobe markers={globe.markers} target={target} stale={stale} onPick={pickCountry} onGrab={() => pick(shown)} onBlank={() => pick(null)}>
                 {card && (

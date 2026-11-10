@@ -53,7 +53,8 @@ export function NetworkView({
     const epoch = ++generation.current
     const range = rangeKey(hours)
     for (const id of onlineIds) {
-      fetchSeries(id, range, 'all')
+      // server 用 0 基下标（见 network 页顶部说明），主题内 id 从 1 开始。
+      fetchSeries(id - 1, range, 'all')
         .then((payload) => {
           if (epoch !== generation.current) return
           const series = linesOf(payload)

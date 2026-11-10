@@ -13,6 +13,7 @@ import {
   buildModel,
   buildTheme,
   fetchConfigFile,
+  liveHistory,
   readLocalConfig,
   seriesHistory,
   writeLocalConfig,
@@ -188,7 +189,9 @@ export default function FootballApp({
   const requestHistory = useCallback((nodeId: number) => {
     if (pending.current.has(nodeId) || settled.current.has(nodeId)) return
     pending.current.add(nodeId)
-    fetchSeries(nodeId, '24h', 'all')
+    // /api/series 的 server 是主控数组下标（0 基），主题内 id 从 1 开始，这里必须减 1，
+    // 否则拿到的永远是下一台的历史，最后一台直接 404。
+    fetchSeries(nodeId - 1, '24h', 'all')
       .then((payload) => {
         const series = linesOf(payload)
         setHistory((prev) => ({ ...prev, [nodeId]: seriesHistory(payload, series) }))
@@ -242,6 +245,8 @@ export default function FootballApp({
         tiers={tiers}
         history={history}
         historyFailed={historyFailed}
+        // 24 小时历史没到（或主控不支持 probe-series）时，卡片条用实时帧的一小时桶兜底。
+        liveOf={(id) => liveHistory(model, id)}
         updatedAt={model.updatedAt}
         error={error}
         loading={model.loading}

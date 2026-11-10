@@ -114,6 +114,18 @@ export function toMonitorNode(server: ProbeServer, index: number): MonitorNode {
     last_seen: lastSeen,
     last_seen_ago: server.online || lastSeen === null ? null : Math.max(0, Date.now() / 1000 - lastSeen),
     metrics: metricsOf(server),
+    // 原样带上主控给了的实时字段：主控只跑流量统计时 metrics 为 null，
+    // 卡面仍要能把 uptime / 单项占用显示出来，而不是六格全空。
+    raw: {
+      cpu_pct: nullable(server.cpu_pct) ?? undefined,
+      mem_used: nullable(server.mem_used) ?? undefined,
+      mem_total: nullable(server.mem_total) ?? undefined,
+      disk_used: nullable(server.disk_used) ?? undefined,
+      disk_total: nullable(server.disk_total) ?? undefined,
+      uptime: nullable(server.uptime) ?? undefined,
+      tcp: nullable(server.tcp_connections) ?? undefined,
+      udp: nullable(server.udp_connections) ?? undefined,
+    },
     os: server.os || '',
     kernel: server.kernel || '',
     arch: server.arch || '',

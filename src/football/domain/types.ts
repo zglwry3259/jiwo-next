@@ -29,7 +29,7 @@ export interface Metrics {
 }
 
 export interface MonitorNode {
-  /** 主题内 id = 主控下发顺序（从 1 开始），也是 /api/series 的 server 参数 */
+  /** 主题内 id = 主控下发顺序（从 1 开始，只用于页内路由与配置键）。/api/series 的 server 参数是 0 基，请求时要减 1 */
   id: number
   name: string
   sort: number
@@ -42,6 +42,20 @@ export interface MonitorNode {
   last_seen: number | null
   last_seen_ago?: number | null
   metrics: Metrics | null
+  /**
+   * 主控原始实时值。主控只跑流量统计（没装资源 agent）时不下发 cpu/mem/disk，
+   * metrics 会是 null；卡面六项改读这里，有多少显示多少，缺的才写「—」。
+   */
+  raw?: {
+    cpu_pct?: number
+    mem_used?: number
+    mem_total?: number
+    disk_used?: number
+    disk_total?: number
+    uptime?: number
+    tcp?: number
+    udp?: number
+  }
   os: string
   kernel: string
   arch: string

@@ -49,6 +49,12 @@ export function PlayerCard({
     previous.current = rating
     setPhase((now) => (now === 'spin' ? (/^\d+$/.test(rating) ? 'stop' : rating === '—' ? 'spin' : null) : now))
   }, [rating])
+  // 评分永远拿不到时（主控没下发探测桶）不能一直转：转够 4 秒就停住显示「—」。
+  useEffect(() => {
+    if (phase !== 'spin') return undefined
+    const timer = window.setTimeout(() => setPhase('stop'), 4000)
+    return () => window.clearTimeout(timer)
+  }, [phase])
   const rolling = config.motion && !reduced ? phase : null
   const digits = rolling === 'spin' ? ['0', '0'] : [...rating]
   const readings = statReadings(node, score)

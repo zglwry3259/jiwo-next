@@ -69,8 +69,9 @@ export function NodeDetail({
       try {
         const range = rangeKey(hours)
         const [pingPayload, systemPayload] = await Promise.all([
-          fetchSeries(nodeId, range, 'all', undefined, force),
-          fetchSeries<SystemPayload>(nodeId, range, 'system', undefined, force).catch(() => undefined),
+          // server 参数是主控数组下标（0 基），主题内 id 从 1 开始。
+          fetchSeries(nodeId - 1, range, 'all', undefined, force),
+          fetchSeries<SystemPayload>(nodeId - 1, range, 'system', undefined, force).catch(() => undefined),
         ])
         if (epoch !== generation.current) return
         const series = linesOf(pingPayload)

@@ -320,6 +320,124 @@
   left: -17vw;
   width: 100vw;
 }
+/* 主控关掉地球（show_globe=false）时中间列改放节点清单，避免整块留黑。 */
+.ops-centre.ops-roster {
+  position: relative;
+  top: auto;
+  bottom: auto;
+  left: auto;
+  width: auto;
+  grid-column: 2;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 3vh 1.2vw;
+  overflow: hidden;
+}
+
+.ops-roster-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(170px, 13vw, 240px), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0 2px 2px 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+}
+
+.ops-roster-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.ops-roster-item:hover,
+.ops-roster-item[data-focus] {
+  border-color: var(--primary);
+  background: rgba(255, 122, 26, 0.08);
+}
+
+/* 离线节点压暗并去掉左侧绿条，扫一眼就能分出来。 */
+.ops-roster-item[data-online] {
+  border-left: 2px solid var(--success);
+}
+
+.ops-roster-item:not([data-online]) {
+  opacity: 0.55;
+}
+
+.ori-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ori-main b {
+  overflow: hidden;
+  font-size: clamp(12px, 0.95vw, 15px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ori-main small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+}
+
+.ori-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ori-side em {
+  font-size: clamp(15px, 1.3vw, 20px);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.ori-side em[data-tone='ok'] {
+  color: var(--success);
+}
+
+.ori-side em[data-tone='warn'] {
+  color: var(--warning);
+}
+
+.ori-side em[data-tone='bad'] {
+  color: var(--danger);
+}
+
+.ori-side small {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+}
+
+/* 矮屏（1080×600 级别的看板）右栏内容比视口高，允许自己滚动，别把「最近变化」切掉。 */
+.ops-right {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .ops-globe {
   position: absolute;
   inset: 0;

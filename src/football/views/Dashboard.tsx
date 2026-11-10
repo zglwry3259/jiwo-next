@@ -85,6 +85,7 @@ export function Dashboard({
   tiers,
   history,
   historyFailed,
+  liveOf,
   updatedAt,
   error,
   loading,
@@ -101,6 +102,8 @@ export function Dashboard({
   tiers: Record<number, Tier>
   history: Record<number, HistoryResponse>
   historyFailed: Record<number, boolean>
+  /** 实时帧的一小时探测桶；24 小时历史还没回来时用它，卡片条与三网不至于全空。 */
+  liveOf?: (nodeId: number) => HistoryResponse | undefined
   updatedAt: number | null
   error?: string
   loading: boolean
@@ -448,8 +451,9 @@ export function Dashboard({
                     config={config}
                     score={scores[node.id] ?? emptyScore()}
                     tier={tiers[node.id] ?? nextTier(scores[node.id]?.overall ?? null)}
-                    history={history[node.id]}
-                    historyFailed={historyFailed[node.id]}
+                    history={history[node.id] ?? liveOf?.(node.id)}
+                    // 用实时桶兜底时不能再挂「历史加载失败」，否则条子会被当成无数据。
+                    historyFailed={history[node.id] ? historyFailed[node.id] : false}
                     index={index}
                     onVisible={() => requestHistory(node.id)}
                   />

@@ -137,23 +137,33 @@ const usage = (used: number, total: number): StatReading => {
 }
 /** 卡面印的六项：真实占用、在线时长、延迟，按数值本身着色。 */
 export function statReadings(node: MonitorNode, score: NodeScore): Record<StatKey, StatReading> {
-  const m = node.metrics
-  if (!node.online || !m)
-    return Object.fromEntries(STAT_KEYS.map((k) => [k, dash])) as Record<StatKey, StatReading>
+  if (!node.online) return Object.fromEntries(STAT_KEYS.map((k) => [k, dash])) as Record<StatKey, StatReading>
+  const m = node.metrics,
+    raw = node.raw,
+    num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined)
+  // 逐项取：主控可能只给一部分（只跑流量统计时没有 cpu/mem/disk），
+  // 不能因为 metrics 整体为空就把有值的项也写成「—」。
+  const cpu = num(raw?.cpu_pct) ?? m?.cpu,
+    memUsed = num(raw?.mem_used) ?? m?.mem_used,
+    memTotal = num(raw?.mem_total) ?? m?.mem_total ?? node.mem_total,
+    diskUsed = num(raw?.disk_used) ?? m?.disk_used,
+    diskTotal = num(raw?.disk_total) ?? m?.disk_total ?? node.disk_total,
+    uptime = num(raw?.uptime) ?? m?.uptime
   const ms = score.values.latency === null ? null : Math.round(score.values.latency)
   return {
-    cpu: usage(m.cpu, 100),
-    mem: usage(m.mem_used, m.mem_total),
-    dsk: usage(m.disk_used, m.disk_total),
+    cpu: typeof cpu === 'number' ? usage(cpu, 100) : dash,
+    mem: typeof memUsed === 'number' && memTotal > 0 ? usage(memUsed, memTotal) : dash,
+    dsk: typeof diskUsed === 'number' && diskTotal > 0 ? usage(diskUsed, diskTotal) : dash,
     net:
       node.traffic_limit > 0
         ? usage(trafficUsed(node), node.traffic_limit)
         : { value: '∞', unit: '', grade: 'good' },
-    // 一天内重启过值得看一眼，但不算故障。
-    upt:
-      m.uptime >= 86400
-        ? { value: String(Math.floor(m.uptime / 86400)), unit: '天', grade: 'good' }
-        : { value: String(Math.floor(m.uptime / 3600)), unit: '时', grade: 'ok' },
+    // 一天内重启过值得看一眼，但不算故障。主控没给 uptime 时写明在线状态，别只留一格「—」。
+    upt: uptime === undefined
+      ? { value: '在线', unit: '', grade: 'good' }
+      : uptime >= 86400
+        ? { value: String(Math.floor(uptime / 86400)), unit: '天', grade: 'good' }
+        : { value: String(Math.floor(uptime / 3600)), unit: '时', grade: 'ok' },
     png: ms === null ? dash : { value: String(ms), unit: 'ms', grade: ms <= 120 ? 'good' : ms <= 200 ? 'ok' : 'bad' },
   }
 }
