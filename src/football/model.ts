@@ -86,7 +86,7 @@ function metricsOf(server: ProbeServer): Metrics | null {
 /** 计费周期：主控用 month/quarter/...，football 的 cycle() 两套都认，这里原样透传。 */
 const billingCycle = (server: ProbeServer) => server.renewal_cycle || ''
 
-export function toMonitorNode(server: ProbeServer, index: number): MonitorNode {
+export function toMonitorNode(server: ProbeServer, index: number, alias?: string): MonitorNode {
   const id = index + 1
   const daily = [...(server.daily_traffic || [])].sort((a, b) => a.date.localeCompare(b.date))
   const today = daily.at(-1)
@@ -105,9 +105,10 @@ export function toMonitorNode(server: ProbeServer, index: number): MonitorNode {
   const unlocks = server.unlocks ?? []
   return {
     id,
-    // 名称回退链见 domain/name.ts：主控各版本把显示名放在不同键上，
-    // show_name=false 时真名由 use-probe 挪到 real_name。
-    name: nodeName(server, id),
+    // 名称优先级：站长本机自定义名 > 主控下发名（多键回退，见 domain/name.ts）> 序号。
+    // 主控 show_name=false 时可能连真名都不发，只能靠别名。
+    name: alias?.trim() || nodeName(server, id),
+    master_name: server.name,
     sort: index,
     public: true,
     online: server.online,
@@ -180,9 +181,15 @@ export interface FootballModel {
   title: string
 }
 
-export function buildModel(payload: ProbePayload | undefined, error: string | undefined, updatedAt: number | undefined): FootballModel {
+export function buildModel(
+  payload: ProbePayload | undefined,
+  error: string | undefined,
+  updatedAt: number | undefined,
+  /** 站长的本机配置：目前只取每台节点的自定义显示名（nodes[id].alias） */
+  config?: Pick<ThemeConfig, 'nodes'>,
+): FootballModel {
   const servers = payload?.servers ?? []
-  const nodes = servers.map((server, index) => toMonitorNode(server, index))
+  const nodes = servers.map((server, index) => toMonitorNode(server, index, config?.nodes?.[String(index + 1)]?.alias))
   const series: Record<number, ProbePingSeries[]> = {}
   const scores: Record<number, NodeScore> = {}
   nodes.forEach((node, index) => {
@@ -249,6 +256,8 @@ function pickGlobal(raw: Partial<GlobalConfig> | undefined, base: GlobalConfig):
 
 function pickNode(raw: NodeConfig): NodeConfig {
   const out: NodeConfig = {}
+  // 自定义显示名：站长手填的，长度按卡面能放下的上限截断。
+  if (typeof raw.alias === 'string' && raw.alias.trim()) out.alias = raw.alias.trim().slice(0, 48)
   const template = migrateTemplate(raw.template, 'node')
   if (template) out.template = template
   if (raw.provider && typeof raw.provider.id === 'string') out.provider = raw.provider

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { nameSize, nameWidth, nodeName } from './name.ts'
+import { isPlaceholderName, nameSize, nameWidth, nodeName } from './name.ts'
 
 test('主控关了 show_name 时用 real_name 里的真名', () => {
   assert.equal(nodeName({ real_name: '香港 01', name: '服务器 1' }, 1), '香港 01')
@@ -17,6 +17,20 @@ test('全空才用序号占位，且首尾空白会被去掉', () => {
   assert.equal(nodeName({}, 6), '服务器 6')
   assert.equal(nodeName(null, 7), '服务器 7')
   assert.equal(nodeName({ name: '  HK-01  ' }, 8), 'HK-01')
+})
+
+test('占位名识别：主控自己下发的「服务器 N」也认出来', () => {
+  // 主控 show_name=false 且不保留真名时，name 字段本身就是序号
+  assert.equal(isPlaceholderName('服务器 1', 1), true)
+  assert.equal(isPlaceholderName('服务器 12', 12), true)
+  assert.equal(isPlaceholderName(' 服务器 3 ', 3), true)
+  // 序号对不上、或本来就是站长的名字，不算占位
+  assert.equal(isPlaceholderName('服务器 1', 2), false)
+  assert.equal(isPlaceholderName('香港 01', 1), false)
+  assert.equal(isPlaceholderName('香港服务器 1', 1), false)
+  // 字段缺失同样视为没拿到名字
+  assert.equal(isPlaceholderName(undefined, 4), true)
+  assert.equal(isPlaceholderName('   ', 5), true)
 })
 
 test('全角与 emoji 按两格计算宽度', () => {

@@ -24,6 +24,22 @@ export function nodeName(server: NameSource | null | undefined, id: number): str
 }
 
 /**
+ * 主控占位名判定。
+ *
+ * 主控在 show_name=false 时不一定只是抹掉字段，有的版本直接把 name 写成「服务器 N」再下发，
+ * 前端此时无法区分「站长真的叫这个名字」和「主控占位」。别名输入框据此提示，
+ * 避免站长以为名字没生效。
+ */
+export function isPlaceholderName(name: string | undefined, id?: number): boolean {
+  if (!name) return true
+  const text = name.trim()
+  if (!text) return true
+  const match = /^服务器\s*(\d+)$/.exec(text)
+  if (!match) return false
+  return id === undefined || Number(match[1]) === id
+}
+
+/**
  * 卡面名称档位。卡宽固定、单行 nowrap，字号必须按显示宽度退档。
  * 半角算 1 格、全角与 emoji 算 2 格；可用宽度约 0.88 卡宽，
  * 一格的宽度约 0.5em，于是各档单行上限：

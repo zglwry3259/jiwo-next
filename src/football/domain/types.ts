@@ -32,6 +32,8 @@ export interface MonitorNode {
   /** 主题内 id = 主控下发顺序（从 1 开始，只用于页内路由与配置键）。/api/series 的 server 参数是 0 基，请求时要减 1 */
   id: number
   name: string
+  /** 主控下发的原始 name 字段（未经回退链、未经本地别名替换），设置页用来诊断 */
+  master_name?: string
   sort: number
   public: boolean
   online: boolean
@@ -163,6 +165,12 @@ export interface ProviderConfig {
 }
 
 export interface NodeConfig {
+  /**
+   * 本机自定义显示名，优先级高于主控下发的所有名称字段。
+   * 主控 show_name=false 时会连真名一起扣掉（只发「服务器 N」），
+   * 那种情况下探针端只能靠站长自己在这里补名字。
+   */
+  alias?: string
   template?: TemplateId
   provider?: ProviderConfig
   portrait?: PortraitConfig

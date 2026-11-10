@@ -170,7 +170,7 @@ export default function FootballApp({
   }, [config.motion])
 
   // ---------- 主控快照 → 主题模型 ----------
-  const model = useMemo(() => buildModel(data, error, updatedAt), [data, error, updatedAt])
+  const model = useMemo(() => buildModel(data, error, updatedAt, view), [data, error, updatedAt, view])
 
   // 档位带滞回：分数在阈值附近抖动时不要来回换色（nextTier 的 GAP 就是干这个的）。
   const tierCache = useRef<Record<number, Tier>>({})

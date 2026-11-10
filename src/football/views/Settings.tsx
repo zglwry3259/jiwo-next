@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { providers } from '../domain/providers'
 import { carriers, lines } from '../domain/carriers'
+import { isPlaceholderName } from '../domain/name'
 import { emptyScore, nextTier } from '../domain/score'
 import { nodeTemplate, skins } from '../domain/skins'
 import type { CarrierId, GlobalConfig, MonitorNode, NodeConfig, PortraitConfig, ThemeConfig } from '../domain/types'
@@ -198,12 +199,29 @@ export function Settings({
               return (
                 <div key={node.id} className="fb-node-row" data-open={open || undefined}>
                   <button type="button" className="fb-node-head" onClick={() => setEditing(open ? null : node.id)}>
-                    <b>{node.name}</b>
+                    <b>{conf.alias?.trim() || node.name}</b>
                     <small>{template === 'auto' ? '卡面自动' : skins.find((s) => s.id === template)?.name}</small>
                     <em>{node.online ? '在线' : '离线'}</em>
                   </button>
                   {open && (
                     <div className="fb-node-body">
+                      <div className="fb-alias">
+                        <label className="fb-text">
+                          显示名
+                          <input
+                            value={conf.alias ?? ''}
+                            placeholder={node.name}
+                            maxLength={48}
+                            onChange={(event) => patchNode(node.id, { alias: event.target.value || undefined })}
+                          />
+                        </label>
+                        <p className="fb-quiet">
+                          主控下发：
+                          {node.master_name ? `「${node.master_name}」` : '未下发名称字段'}
+                          {isPlaceholderName(node.master_name, node.id) &&
+                            ' —— 这是序号占位名，主控没有把真实名称发给探针（主控关掉「显示服务器名称」时会这样）。在这里填一个，卡面就用它。'}
+                        </p>
+                      </div>
                       <label className="fb-text">
                         卡面
                         <select
@@ -302,7 +320,13 @@ export function Settings({
           <section className="fb-settings-block panel fb-preview-block">
             <h2>即时预览</h2>
             <div className="fb-preview">
-              <PlayerCard node={preview} config={draft} score={previewScore} tier={nextTier(null)} interactive={false} />
+              <PlayerCard
+                node={{ ...preview, name: nodeConfig(preview.id).alias?.trim() || preview.name }}
+                config={draft}
+                score={previewScore}
+                tier={nextTier(null)}
+                interactive={false}
+              />
             </div>
             <p className="fb-quiet">评分为实时值，未连接到历史时这里显示占位。</p>
           </section>

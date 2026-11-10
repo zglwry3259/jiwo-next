@@ -167,6 +167,7 @@ Lumina 的普通浅色／暗色使用 Claude Paper 纸面布局与莫兰迪配�
   - 品牌：页头图标用主控 `logo`（取不到时退回主题自带小人），页脚显示 `license_badge` 与站点名。
   - 显示开关：`show_renewal_timeline=false` 收起费用／剩余价值／即将到期，`show_traffic_quota=false` 收起流量配额，`show_daily_trend=false` 收起今日流量，`show_health_score=false` 收起评分汇总／评分分区／运维墙平均分，`show_globe=false` 运维墙不画地球。主控只能关、不能强制打开访客关掉的区块。
   - 速率单位跟 `PROBE_NETWORK_SPEED_UNIT`：卡下条、统计格、运维墙、详情页速率图统一按 bit（Mbps）或 byte（MB/s）显示。
+  - 服务器名称：`real_name` → `name` → `remark` → `alias` → `display_name` 依次回退（`src/football/domain/name.ts`）。主控把「显示服务器名称」关掉时会连真名一起扣掉，只发 `服务器 N`；这种情况在**主题设置 → 节点 → 显示名**里手填，优先级最高，可以只存在本机，也可以「导出 JSON」放进 `public/football/theme.json` 让所有访客都看到。设置页会显示主控实际下发的名称字段，便于判断是没配还是被扣掉。
 - **三网线路**：优先用站长在设置里填的任务号／线路名，其次是主控 `return_routes` 的回程路由类型（CN2 GIA、9929、CMI 等），最后才用探测名。探测任务按 `isp`（telecom / unicom / mobile）→ `key` → 显示名三层归类，`isp=intl` 的国际线路归到「其他探测任务」。
 - **详情页额外分区**：主控下发 `unlocks` 时出现「解锁检测」，状态文案与配色复用 `src/unlocks.ts`，与经典主题口径一致；`conn_history` 存在时系统信息里补「近 1 小时连接数」的 TCP／UDP 走势。
 - **转发链路**：主控 `show_forward` 打开且下发 `forward` 时，首页汇总区下面出现「转发链路」，状态、24 小时状态条、可用率、7 天流量全部复用 `src/forward-model.ts` 的判定。
