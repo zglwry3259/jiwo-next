@@ -238,6 +238,23 @@
   margin: 0;
   line-height: 1.6;
 }
+/* 主控字段诊断行：键值用等宽字排成一串，方便站长截图核对名字到底落在哪个键 */
+.fb-root .fb-alias .fb-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.fb-root .fb-alias code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.14);
+  word-break: break-all;
+}
 .fb-root .fb-carrier-row {
   display: grid;
   grid-template-columns: 42px minmax(90px, 1fr) minmax(110px, 1fr);

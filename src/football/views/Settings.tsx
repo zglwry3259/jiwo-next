@@ -217,10 +217,26 @@ export function Settings({
                         </label>
                         <p className="fb-quiet">
                           主控下发：
-                          {node.master_name ? `「${node.master_name}」` : '未下发名称字段'}
-                          {isPlaceholderName(node.master_name, node.id) &&
+                          {node.name_key ? `「${node.name}」` : node.master_name ? `「${node.master_name}」` : '未下发名称字段'}
+                          {node.name_key && (
+                            <>
+                              （取自 <code>{node.name_key}</code> 字段）
+                            </>
+                          )}
+                          {!node.name_key &&
+                            isPlaceholderName(node.master_name, node.id) &&
                             ' —— 这是序号占位名，主控没有把真实名称发给探针（主控关掉「显示服务器名称」时会这样）。在这里填一个，卡面就用它。'}
                         </p>
+                        {Boolean(node.master_fields?.length) && (
+                          <p className="fb-quiet fb-fields">
+                            主控字段：
+                            {node.master_fields?.map((field) => (
+                              <code key={field.key}>
+                                {field.key}={field.value}
+                              </code>
+                            ))}
+                          </p>
+                        )}
                       </div>
                       <label className="fb-text">
                         卡面

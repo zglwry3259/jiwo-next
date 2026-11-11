@@ -34,6 +34,10 @@ export interface MonitorNode {
   name: string
   /** 主控下发的原始 name 字段（未经回退链、未经本地别名替换），设置页用来诊断 */
   master_name?: string
+  /** 卡面名称实际取自哪个字段（如 remark / probe_name / meta.title），没取到为 null */
+  name_key?: string | null
+  /** 主控真的发过来的名字类字段（键 + 值），设置页原样列出，便于核对主控把名字塞在哪 */
+  master_fields?: { key: string; value: string }[]
   sort: number
   public: boolean
   online: boolean

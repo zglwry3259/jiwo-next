@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isPlaceholderName, nameSize, nameWidth, nodeName } from './name.ts'
+import { isPlaceholderName, nameFields, nameSize, nameSourceKey, nameWidth, nodeName } from './name.ts'
 
 test('主控关了 show_name 时用 real_name 里的真名', () => {
   assert.equal(nodeName({ real_name: '香港 01', name: '服务器 1' }, 1), '香港 01')
@@ -50,4 +50,34 @@ test('卡面字号档位按显示宽度退档', () => {
   assert.equal(nameSize('香港-高级专线-东京-02'), 'lg')
   // 26 格（18 字全角名）必须降到 4.9cqw
   assert.equal(nameSize('香港-Hysteria2-高级专线-01'), 'xl')
+})
+
+test('主控把显示名放在自创键上时也能取到（真机各个版本落点不同）', () => {
+  assert.equal(nodeName({ name: '服务器 1', nickname: 'JP 光帆' }, 1), 'JP 光帆')
+  assert.equal(nodeName({ name: '服务器 2', probe_name: 'US-AK' }, 2), 'US-AK')
+  assert.equal(nodeName({ name: '服务器 3', server_name: '海创HK' }, 3), '海创HK')
+  assert.equal(nodeName({ name: '服务器 4', label: 'HKREE' }, 4), 'HKREE')
+})
+
+test('名字塞在一层子对象里也能取到', () => {
+  assert.equal(nodeName({ name: '服务器 1', meta: { title: 'HKREE' } }, 1), 'HKREE')
+  assert.equal(nodeName({ name: '服务器 1', probe: { name: 'JP 光帆' } }, 1), 'JP 光帆')
+})
+
+test('技术键绝不当名字：region_name / provider_name / cpu_model / group_name', () => {
+  const server = { name: '服务器 1', region_name: '香港', region_city: 'Hong Kong', provider_name: 'Akile', cpu_model: 'EPYC 7763', group_name: '进口' }
+  assert.equal(nodeName(server, 1), '服务器 1')
+  assert.equal(nameSourceKey(server, 1), null)
+})
+
+test('nameFields 把主控下发的名字类字段原样列出来，便于核对', () => {
+  assert.deepEqual(nameFields({ name: '服务器 1', nickname: 'JP 光帆', region_name: '香港' }), [
+    { key: 'nickname', value: 'JP 光帆' },
+    { key: 'name', value: '服务器 1' },
+  ])
+})
+
+test('nameSourceKey 报出卡面实际用了哪个键', () => {
+  assert.equal(nameSourceKey({ name: '服务器 1', remark: '东京 CN2' }, 1), 'remark')
+  assert.equal(nameSourceKey({ name: '服务器 1', meta: { title: 'HKREE' } }, 1), 'meta.title')
 })

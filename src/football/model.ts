@@ -1,7 +1,7 @@
 import type { ProbePayload, ProbePingSeries, ProbeServer } from '../types'
 import type { GlobalConfig, HistoryResponse, Metrics, MonitorNode, NodeConfig, ThemeConfig } from './domain/types'
 import { DEFAULT_RATES, cycleMonths, parseRates } from './domain/fleet'
-import { nodeName } from './domain/name'
+import { nameFields, nameSourceKey, nodeName } from './domain/name'
 import { historyFromPing, type SeriesPayload } from './domain/history'
 import { DEFAULT_PORTRAIT } from './domain/portrait'
 import { liveNetworkScore, type NodeScore } from './domain/score'
@@ -109,6 +109,9 @@ export function toMonitorNode(server: ProbeServer, index: number, alias?: string
     // 主控 show_name=false 时可能连真名都不发，只能靠别名。
     name: alias?.trim() || nodeName(server, id),
     master_name: server.name,
+    // 诊断：主控到底把显示名放在哪个键上。别名没填时卡面用的就是这个键。
+    name_key: nameSourceKey(server, id),
+    master_fields: nameFields(server),
     sort: index,
     public: true,
     online: server.online,
